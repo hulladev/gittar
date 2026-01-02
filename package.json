@@ -1,6 +1,6 @@
 {
   "name": "@hulla/gittar",
-  "version": "0.0.0-alpha.0",
+  "version": "0.0.0",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
