@@ -1,5 +1,11 @@
 # @hulla/gittar
 
+## 0.0.1
+
+### Patch Changes
+
+- minified build
+
 ## 0.0.0
 
 ### Patch Changes
