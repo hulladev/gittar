@@ -39,31 +39,21 @@ export function parseRepoInfo(url: string): { owner: string; repo: string; subpa
 }
 
 /**
- * Determines the cache directory path based on config and fallbacks
- * Priority: cachedir → outdir (as cachedir, but not when subpath is specified) → default path
+ * Determines the cache directory path based on config
+ * Priority: cachedir → default path
  *
- * Note: When subpath is specified without an explicit cachedir, we use the default cache
- * location to store the full repo, while outdir gets only the subpath.
+ * Note: cacheDir is independent of outDir. The cache always stores the full repo,
+ * while outDir (if different) gets a copy of the files (potentially filtered by subpath).
  *
  * @param config - Configuration object
  * @param owner - Repository owner
  * @param repo - Repository name
- * @param subpath - Optional subpath filter
+ * @param subpath - Optional subpath filter (not used, kept for backward compatibility)
  * @returns Absolute path to cache directory
  */
-export function getCacheDir(config: Config, owner: string, repo: string, subpath?: string): string {
+export function getCacheDir(config: Config, owner: string, repo: string): string {
   if (config.cacheDir) {
     return normalizePath(config.cacheDir)
-  }
-
-  // If subpath is specified and cachedir is not, use default cache (not outdir)
-  // This allows us to cache the full repo while outputting only the subpath
-  if (subpath) {
-    return `${homedir()}/.cache/hulla/gittar/${owner}/${repo}`
-  }
-
-  if (config.outDir) {
-    return normalizePath(config.outDir)
   }
 
   // Default: ~/.cache/hulla/gittar/{owner}/{repo}

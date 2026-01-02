@@ -36,7 +36,7 @@ export default async function gittar(configOrUrl: Config | string): Promise<Gitt
   const subpath = config.subpath || parsed.subpath
 
   // Determine cache directory (subpath affects cache location logic)
-  const cacheDir = getCacheDir(config, owner, repo, subpath)
+  const cacheDir = getCacheDir(config, owner, repo)
 
   // Determine output directory (defaults to cacheDir)
   const outdir = config.outDir ? normalizePath(config.outDir) : cacheDir
