@@ -52,8 +52,12 @@ describe('gittar', () => {
     const result = await gittar(config)
 
     expect(result).toBeDefined()
-    expect(result.length).toBeGreaterThan(0)
-    expect(result.every((f) => f.startsWith(testDir))).toBe(true)
+    expect(result.files).toBeDefined()
+    expect(result.files.length).toBeGreaterThan(0)
+    expect(result.files.every((f) => f.startsWith(testDir))).toBe(true)
+    expect(result.fromCache).toBe(false)
+    expect(result.cacheDir).toBe(testDir)
+    expect(result.outDir).toBe(testDir)
 
     const readmeExists = await Bun.file(`${testDir}/README.md`).exists()
     const packageExists = await Bun.file(`${testDir}/package.json`).exists()
@@ -71,11 +75,15 @@ describe('gittar', () => {
 
     const result1 = await gittar(config)
     expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(result1.fromCache).toBe(false)
 
     const result2 = await gittar(config)
     expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(result2.fromCache).toBe(true)
 
-    expect(result1).toEqual(result2)
+    expect(result1.files).toEqual(result2.files)
+    expect(result1.cacheDir).toEqual(result2.cacheDir)
+    expect(result1.outDir).toEqual(result2.outDir)
   })
 
   test('bypasses cache when update is true', async () => {
@@ -85,11 +93,13 @@ describe('gittar', () => {
       cachedir: cacheDir,
     }
 
-    await gittar(config)
+    const result1 = await gittar(config)
     expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(result1.fromCache).toBe(false)
 
-    await gittar({ ...config, update: true })
+    const result2 = await gittar({ ...config, update: true })
     expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(result2.fromCache).toBe(false)
   })
 
   test('uses cachedir when specified', async () => {
@@ -101,7 +111,9 @@ describe('gittar', () => {
 
     const result = await gittar(config)
 
-    expect(result.every((f) => f.startsWith(cacheDir))).toBe(true)
+    expect(result.files.every((f) => f.startsWith(cacheDir))).toBe(true)
+    expect(result.cacheDir).toBe(cacheDir)
+    expect(result.outDir).toBe(cacheDir)
 
     const { exitCode } = await Bun.$`test -d ${cacheDir}`.nothrow().quiet()
     expect(exitCode).toBe(0)
@@ -116,7 +128,9 @@ describe('gittar', () => {
 
     const result = await gittar(config)
 
-    expect(result.every((f) => f.startsWith(outDir))).toBe(true)
+    expect(result.files.every((f) => f.startsWith(outDir))).toBe(true)
+    expect(result.cacheDir).toBe(outDir)
+    expect(result.outDir).toBe(outDir)
   })
 
   test('uses default cache location when neither cachedir nor outdir specified', async () => {
@@ -127,7 +141,10 @@ describe('gittar', () => {
     const result = await gittar(config)
 
     expect(result).toBeDefined()
-    expect(result.length).toBeGreaterThan(0)
+    expect(result.files).toBeDefined()
+    expect(result.files.length).toBeGreaterThan(0)
+    expect(result.cacheDir).toBeDefined()
+    expect(result.outDir).toBeDefined()
   })
 
   test('handles branch specification', async () => {
@@ -210,8 +227,8 @@ describe('gittar', () => {
 
     const result = await gittar(config)
 
-    for (let i = 1; i < result.length; i++) {
-      expect(result[i - 1] <= result[i]).toBe(true)
+    for (let i = 1; i < result.files.length; i++) {
+      expect(result.files[i - 1] <= result.files[i]).toBe(true)
     }
   })
 
@@ -244,13 +261,19 @@ describe('gittar', () => {
 
     const result1 = await gittar(config)
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(result1.every((f) => f.startsWith(outDir))).toBe(true)
+    expect(result1.files.every((f) => f.startsWith(outDir))).toBe(true)
+    expect(result1.fromCache).toBe(false)
+    expect(result1.cacheDir).toBe(cacheDir)
+    expect(result1.outDir).toBe(outDir)
 
     await Bun.$`rm -rf ${outDir}`.quiet()
 
     const result2 = await gittar(config)
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(result2.every((f) => f.startsWith(outDir))).toBe(true)
+    expect(result2.files.every((f) => f.startsWith(outDir))).toBe(true)
+    expect(result2.fromCache).toBe(true)
+    expect(result2.cacheDir).toBe(cacheDir)
+    expect(result2.outDir).toBe(outDir)
 
     const outReadmeExists = await Bun.file(`${outDir}/README.md`).exists()
     expect(outReadmeExists).toBe(true)
@@ -267,8 +290,10 @@ describe('gittar', () => {
 
     const result = await gittar(config)
 
-    expect(result.every((f) => f.startsWith(outDir))).toBe(true)
-    expect(result.every((f) => !f.startsWith(cacheDir))).toBe(true)
+    expect(result.files.every((f) => f.startsWith(outDir))).toBe(true)
+    expect(result.files.every((f) => !f.startsWith(cacheDir))).toBe(true)
+    expect(result.cacheDir).toBe(cacheDir)
+    expect(result.outDir).toBe(outDir)
   })
 
   test('returns cachedir paths when outdir equals cachedir', async () => {
@@ -281,7 +306,9 @@ describe('gittar', () => {
 
     const result = await gittar(config)
 
-    expect(result.every((f) => f.startsWith(cacheDir))).toBe(true)
+    expect(result.files.every((f) => f.startsWith(cacheDir))).toBe(true)
+    expect(result.cacheDir).toBe(cacheDir)
+    expect(result.outDir).toBe(cacheDir)
   })
 
   test('preserves cache when update is false and reuses it for different outdir', async () => {
@@ -361,13 +388,14 @@ describe('gittar', () => {
     const result = await gittar(config)
 
     // Should only contain files from src directory
-    expect(result.length).toBe(2)
-    expect(result.some((f) => f.endsWith('index.ts'))).toBe(true)
-    expect(result.some((f) => f.endsWith('utils.ts'))).toBe(true)
+    expect(result.files.length).toBe(2)
+    expect(result.files.some((f) => f.endsWith('index.ts'))).toBe(true)
+    expect(result.files.some((f) => f.endsWith('utils.ts'))).toBe(true)
+    expect(result.subpath).toBe('src')
 
     // Should NOT contain files from root or docs
-    expect(result.some((f) => f.endsWith('README.md'))).toBe(false)
-    expect(result.some((f) => f.endsWith('guide.md'))).toBe(false)
+    expect(result.files.some((f) => f.endsWith('README.md'))).toBe(false)
+    expect(result.files.some((f) => f.endsWith('guide.md'))).toBe(false)
 
     // Files should be in the root of outdir, not in src subdirectory
     const indexExists = await Bun.file(`${testDir}/index.ts`).exists()
@@ -414,12 +442,13 @@ describe('gittar', () => {
     const result = await gittar(config)
 
     // Should only contain files from docs directory
-    expect(result.length).toBe(1)
-    expect(result.some((f) => f.endsWith('guide.md'))).toBe(true)
+    expect(result.files.length).toBe(1)
+    expect(result.files.some((f) => f.endsWith('guide.md'))).toBe(true)
+    expect(result.subpath).toBe('docs')
 
     // Should NOT contain files from root or src
-    expect(result.some((f) => f.endsWith('README.md'))).toBe(false)
-    expect(result.some((f) => f.endsWith('index.ts'))).toBe(false)
+    expect(result.files.some((f) => f.endsWith('README.md'))).toBe(false)
+    expect(result.files.some((f) => f.endsWith('index.ts'))).toBe(false)
   })
 
   test('returns only subpath files from cache when cache exists', async () => {
@@ -459,18 +488,22 @@ describe('gittar', () => {
     // First call should download and cache
     const result1 = await gittar(config)
     expect(fetchMockSubpath).toHaveBeenCalledTimes(1)
-    expect(result1.length).toBe(2)
-    expect(result1.some((f) => f.endsWith('index.ts'))).toBe(true)
-    expect(result1.some((f) => f.endsWith('utils.ts'))).toBe(true)
+    expect(result1.files.length).toBe(2)
+    expect(result1.files.some((f) => f.endsWith('index.ts'))).toBe(true)
+    expect(result1.files.some((f) => f.endsWith('utils.ts'))).toBe(true)
+    expect(result1.fromCache).toBe(false)
+    expect(result1.subpath).toBe('src')
 
     // Second call should use cache and return only subpath files
     const result2 = await gittar(config)
     expect(fetchMockSubpath).toHaveBeenCalledTimes(1) // Should not fetch again
-    expect(result2.length).toBe(2)
-    expect(result2.some((f) => f.endsWith('index.ts'))).toBe(true)
-    expect(result2.some((f) => f.endsWith('utils.ts'))).toBe(true)
-    expect(result2.some((f) => f.endsWith('README.md'))).toBe(false)
-    expect(result2.some((f) => f.endsWith('guide.md'))).toBe(false)
+    expect(result2.files.length).toBe(2)
+    expect(result2.files.some((f) => f.endsWith('index.ts'))).toBe(true)
+    expect(result2.files.some((f) => f.endsWith('utils.ts'))).toBe(true)
+    expect(result2.files.some((f) => f.endsWith('README.md'))).toBe(false)
+    expect(result2.files.some((f) => f.endsWith('guide.md'))).toBe(false)
+    expect(result2.fromCache).toBe(true)
+    expect(result2.subpath).toBe('src')
   })
 
   test('copies only subpath files from cache to outdir when outdir differs', async () => {
@@ -511,9 +544,13 @@ describe('gittar', () => {
     // First call should download, cache, and copy to outdir
     const result1 = await gittar(config)
     expect(fetchMockSubpath).toHaveBeenCalledTimes(1)
-    expect(result1.every((f) => f.startsWith(outDir))).toBe(true)
-    expect(result1.length).toBe(1)
-    expect(result1.some((f) => f.endsWith('index.ts'))).toBe(true)
+    expect(result1.files.every((f) => f.startsWith(outDir))).toBe(true)
+    expect(result1.files.length).toBe(1)
+    expect(result1.files.some((f) => f.endsWith('index.ts'))).toBe(true)
+    expect(result1.fromCache).toBe(false)
+    expect(result1.subpath).toBe('src')
+    expect(result1.cacheDir).toBe(cacheDir)
+    expect(result1.outDir).toBe(outDir)
 
     // Remove outdir
     await Bun.$`rm -rf ${outDir}`.quiet()
@@ -521,9 +558,13 @@ describe('gittar', () => {
     // Second call should use cache and copy only subpath to outdir
     const result2 = await gittar(config)
     expect(fetchMockSubpath).toHaveBeenCalledTimes(1) // Should not fetch again
-    expect(result2.every((f) => f.startsWith(outDir))).toBe(true)
-    expect(result2.length).toBe(1)
-    expect(result2.some((f) => f.endsWith('index.ts'))).toBe(true)
+    expect(result2.files.every((f) => f.startsWith(outDir))).toBe(true)
+    expect(result2.files.length).toBe(1)
+    expect(result2.files.some((f) => f.endsWith('index.ts'))).toBe(true)
+    expect(result2.fromCache).toBe(true)
+    expect(result2.subpath).toBe('src')
+    expect(result2.cacheDir).toBe(cacheDir)
+    expect(result2.outDir).toBe(outDir)
 
     // Verify only subpath files exist in outdir
     const outIndexExists = await Bun.file(`${outDir}/index.ts`).exists()

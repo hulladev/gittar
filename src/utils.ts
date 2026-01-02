@@ -4,6 +4,21 @@ import { URLError } from './errors'
 import type { Config } from './types.public'
 
 /**
+ * Normalizes a path by expanding ~ to home directory
+ * @param path - Path that may contain ~
+ * @returns Normalized absolute path
+ */
+export function normalizePath(path: string): string {
+  if (path.startsWith('~/')) {
+    return `${homedir()}/${path.slice(2)}`
+  }
+  if (path === '~') {
+    return homedir()
+  }
+  return path
+}
+
+/**
  * Extracts owner, repo, and optional subpath from a URL or short format input
  * @param url - Repository URL or identifier
  * @returns Object containing owner, repo, and optional subpath
@@ -37,8 +52,8 @@ export function parseRepoInfo(url: string): { owner: string; repo: string; subpa
  * @returns Absolute path to cache directory
  */
 export function getCacheDir(config: Config, owner: string, repo: string, subpath?: string): string {
-  if (config.cachedir) {
-    return config.cachedir
+  if (config.cacheDir) {
+    return normalizePath(config.cacheDir)
   }
 
   // If subpath is specified and cachedir is not, use default cache (not outdir)
@@ -47,8 +62,8 @@ export function getCacheDir(config: Config, owner: string, repo: string, subpath
     return `${homedir()}/.cache/hulla/gittar/${owner}/${repo}`
   }
 
-  if (config.outdir) {
-    return config.outdir
+  if (config.outDir) {
+    return normalizePath(config.outDir)
   }
 
   // Default: ~/.cache/hulla/gittar/{owner}/{repo}
