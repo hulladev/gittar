@@ -1,8 +1,8 @@
-import pkg from "./package.json"
+import pkg from './package.json'
 
 // Check if the user has configured the package to use conventional commits.
 // @ts-expect-error package.json is not typed.
-const isConventional = pkg.config ? pkg.config["cz-emoji"]?.conventional : false
+const isConventional = pkg.config ? pkg.config['cz-emoji']?.conventional : false
 
 // Regex for default and conventional commits.
 const RE_DEFAULT_COMMIT =
@@ -12,15 +12,13 @@ const RE_CONVENTIONAL_COMMIT =
 
 export default {
   rules: {
-    "cz-emoji": [2, "always"],
+    'cz-emoji': [2, 'always'],
   },
   plugins: [
     {
       rules: {
-        "cz-emoji": ({ raw }: { raw: string }) => {
-          const isValid = isConventional
-            ? RE_CONVENTIONAL_COMMIT.test(raw)
-            : RE_DEFAULT_COMMIT.test(raw)
+        'cz-emoji': ({ raw }: { raw: string }) => {
+          const isValid = isConventional ? RE_CONVENTIONAL_COMMIT.test(raw) : RE_DEFAULT_COMMIT.test(raw)
 
           const message = isConventional
             ? `Your commit message should follow conventional commit format.`
