@@ -1,5 +1,11 @@
 # @hulla/gittar
 
+## 0.0.3
+
+### Patch Changes
+
+- backwards compatibility for stale metadata
+
 ## 0.0.2
 
 ### Patch Changes
