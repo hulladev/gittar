@@ -1,5 +1,11 @@
 # @hulla/gittar
 
+## 0.0.2
+
+### Patch Changes
+
+- update modes based on git commit ls
+
 ## 0.0.1
 
 ### Patch Changes
