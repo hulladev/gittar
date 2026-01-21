@@ -4,7 +4,7 @@ import { parseInput } from './getTarUrl'
  * Metadata stored alongside cache to track commit info
  */
 export type CacheMetadata = {
-  commit: string
+  commit?: string
   branch: string
   timestamp: number
 }
@@ -94,10 +94,7 @@ export async function checkCacheStale(
   cachedCommit: string | null
   cachedBranch: string | null
 }> {
-  const [metadata, remoteCommit] = await Promise.all([
-    readCacheMetadata(cacheDir),
-    getRemoteCommit(repoUrl, branch),
-  ])
+  const [metadata, remoteCommit] = await Promise.all([readCacheMetadata(cacheDir), getRemoteCommit(repoUrl, branch)])
 
   // If we can't get remote commit, assume not stale (fail-safe to use cache)
   if (!remoteCommit) {
@@ -119,13 +116,13 @@ export async function checkCacheStale(
     }
   }
 
-  // Compare commits
-  const isStale = metadata.commit !== remoteCommit || metadata.branch !== branch
+  // Compare commits - if cached commit is unknown, consider stale
+  const isStale = !metadata.commit || metadata.commit !== remoteCommit || metadata.branch !== branch
 
   return {
     isStale,
     remoteCommit,
-    cachedCommit: metadata.commit,
+    cachedCommit: metadata.commit ?? null,
     cachedBranch: metadata.branch,
   }
 }

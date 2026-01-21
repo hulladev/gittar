@@ -107,13 +107,11 @@ export default async function gittar(configOrUrl: Config | string): Promise<Gitt
   await extractTar(downloadResult.data, cacheDir)
 
   // Save metadata for future cache validation
-  if (commit) {
-    await writeCacheMetadata(cacheDir, {
-      commit,
-      branch,
-      timestamp: Date.now(),
-    })
-  }
+  await writeCacheMetadata(cacheDir, {
+    commit,
+    branch,
+    timestamp: Date.now(),
+  })
 
   // If outdir is different from cacheDir, copy files to outdir (filtered by subpath if specified)
   if (outdir !== cacheDir) {
