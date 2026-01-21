@@ -738,5 +738,79 @@ describe('gittar', () => {
       expect(metadata.branch).toBe('main')
       expect(metadata.timestamp).toBeGreaterThan(0)
     })
+
+    test('always stores branch in metadata even when commit is unavailable', async () => {
+      const cacheDir = `${testDir}/cache`
+      const config: Config = {
+        url: 'owner/repo',
+        cacheDir: cacheDir,
+        update: 'never',
+      }
+
+      // Make getRemoteCommit return null (simulating failure to fetch commit)
+      getRemoteCommitSpy.mockResolvedValue(null)
+
+      const result = await gittar(config)
+
+      // Branch should still be returned
+      expect(result.branch).toBe('main')
+      expect(result.commit).toBeUndefined()
+
+      // Metadata file should still be created with branch
+      const metaPath = `${cacheDir}/.gittar-meta.json`
+      const metaFile = Bun.file(metaPath)
+      expect(await metaFile.exists()).toBe(true)
+
+      const metadata = await metaFile.json()
+      expect(metadata.branch).toBe('main')
+      expect(metadata.commit).toBeUndefined()
+      expect(metadata.timestamp).toBeGreaterThan(0)
+    })
+
+    test('returns branch from cache when commit was unavailable during initial download', async () => {
+      const cacheDir = `${testDir}/cache`
+      const config: Config = {
+        url: 'owner/repo',
+        cacheDir: cacheDir,
+        update: 'never',
+      }
+
+      // First download with commit unavailable
+      getRemoteCommitSpy.mockResolvedValue(null)
+      const result1 = await gittar(config)
+      expect(result1.branch).toBe('main')
+      expect(result1.commit).toBeUndefined()
+      expect(result1.fromCache).toBe(false)
+
+      // Second call should use cache and still return branch
+      const result2 = await gittar(config)
+      expect(result2.branch).toBe('main')
+      expect(result2.commit).toBeUndefined()
+      expect(result2.fromCache).toBe(true)
+    })
+
+    test('cache is considered stale when commit is unknown (triggers re-download)', async () => {
+      const cacheDir = `${testDir}/cache`
+      const config: Config = {
+        url: 'owner/repo',
+        cacheDir: cacheDir,
+        update: 'commit', // Default strategy
+      }
+
+      // First download with commit unavailable
+      getRemoteCommitSpy.mockResolvedValue(null)
+      const result1 = await gittar(config)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(result1.commit).toBeUndefined()
+
+      // Now make commit available
+      getRemoteCommitSpy.mockResolvedValue('newcommit123')
+
+      // Second call should re-download because cached commit is unknown
+      const result2 = await gittar(config)
+      expect(fetchMock).toHaveBeenCalledTimes(2) // Should fetch again
+      expect(result2.commit).toBe('newcommit123')
+      expect(result2.fromCache).toBe(false)
+    })
   })
 })
