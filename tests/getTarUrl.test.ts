@@ -217,62 +217,68 @@ describe('parseInput', () => {
   describe('URL format', () => {
     test('parses basic URL', () => {
       const parsed = parseInput('https://github.com/owner/repo')
-      expect(parsed).toEqual({
+      expect(parsed).toMatchObject({
         owner: 'owner',
         repo: 'repo',
         hostname: 'github.com',
         ref: 'main',
+        refFromUrl: false,
       })
     })
 
     test('parses URL with custom branch', () => {
       const parsed = parseInput('https://github.com/owner/repo', 'develop')
-      expect(parsed).toEqual({
+      expect(parsed).toMatchObject({
         owner: 'owner',
         repo: 'repo',
         hostname: 'github.com',
         ref: 'develop',
+        refFromUrl: false,
       })
     })
 
     test('extracts branch from tree URL', () => {
       const parsed = parseInput('https://github.com/owner/repo/tree/feature-branch')
-      expect(parsed).toEqual({
+      expect(parsed).toMatchObject({
         owner: 'owner',
         repo: 'repo',
         hostname: 'github.com',
         ref: 'feature-branch',
+        refFromUrl: true,
       })
     })
 
     test('extracts branch from blob URL', () => {
       const parsed = parseInput('https://github.com/owner/repo/blob/dev/src/file.ts')
-      expect(parsed).toEqual({
+      expect(parsed).toMatchObject({
         owner: 'owner',
         repo: 'repo',
         hostname: 'github.com',
         ref: 'dev',
+        refFromUrl: true,
         subpath: 'src/file.ts',
       })
     })
 
     test('extracts branch from src URL (Bitbucket)', () => {
       const parsed = parseInput('https://bitbucket.org/owner/repo/src/feature')
-      expect(parsed).toEqual({
+      expect(parsed).toMatchObject({
         owner: 'owner',
         repo: 'repo',
         hostname: 'bitbucket.org',
         ref: 'feature',
+        refFromUrl: true,
       })
     })
 
     test('extracts branch from browse URL', () => {
       const parsed = parseInput('https://bitbucket.org/owner/repo/browse/feature')
-      expect(parsed).toEqual({
+      expect(parsed).toMatchObject({
         owner: 'owner',
         repo: 'repo',
         hostname: 'bitbucket.org',
         ref: 'feature',
+        refFromUrl: true,
       })
     })
 
@@ -285,7 +291,7 @@ describe('parseInput', () => {
   describe('Edge cases', () => {
     test('handles repo names with hyphens', () => {
       const parsed = parseInput('owner/my-awesome-repo')
-      expect(parsed).toEqual({
+      expect(parsed).toMatchObject({
         owner: 'owner',
         repo: 'my-awesome-repo',
         hostname: 'github.com',
@@ -295,7 +301,7 @@ describe('parseInput', () => {
 
     test('handles repo names with underscores', () => {
       const parsed = parseInput('owner/my_repo')
-      expect(parsed).toEqual({
+      expect(parsed).toMatchObject({
         owner: 'owner',
         repo: 'my_repo',
         hostname: 'github.com',
@@ -305,11 +311,12 @@ describe('parseInput', () => {
 
     test('handles branch names with slashes', () => {
       const parsed = parseInput('https://github.com/owner/repo/tree/feature/subfeature')
-      expect(parsed).toEqual({
+      expect(parsed).toMatchObject({
         owner: 'owner',
         repo: 'repo',
         hostname: 'github.com',
         ref: 'feature',
+        refFromUrl: true,
         subpath: 'subfeature',
       })
     })

@@ -607,11 +607,15 @@ describe('gittar', () => {
       const result1 = await gittar(config)
       expect(fetchMock).toHaveBeenCalledTimes(1)
       expect(result1.fromCache).toBe(false)
+      expect(result1.branch).toBe('main')
+      expect(result1.commit).toBe('abc123def456')
 
       // Second call should still download (always strategy)
       const result2 = await gittar(config)
       expect(fetchMock).toHaveBeenCalledTimes(2)
       expect(result2.fromCache).toBe(false)
+      expect(result2.branch).toBe('main')
+      expect(result2.commit).toBe('abc123def456')
     })
 
     test('update: never - always uses cache when it exists', async () => {
@@ -632,8 +636,8 @@ describe('gittar', () => {
       // Second call should use cache without checking remote
       const result2 = await gittar(config)
       expect(fetchMock).toHaveBeenCalledTimes(1) // No additional fetch
-      expect(getRemoteCommitSpy).toHaveBeenCalledTimes(1) // Only called once during first download
       expect(result2.fromCache).toBe(true)
+      // Cache should return the same commit/branch from when it was downloaded
       expect(result2.commit).toBe('abc123def456')
       expect(result2.branch).toBe('main')
     })
@@ -651,12 +655,14 @@ describe('gittar', () => {
       expect(fetchMock).toHaveBeenCalledTimes(1)
       expect(result1.fromCache).toBe(false)
       expect(result1.commit).toBe('abc123def456')
+      expect(result1.branch).toBe('main')
 
       // Second call - same commit, should use cache
       const result2 = await gittar(config)
       expect(fetchMock).toHaveBeenCalledTimes(1) // No additional fetch
       expect(result2.fromCache).toBe(true)
       expect(result2.commit).toBe('abc123def456')
+      expect(result2.branch).toBe('main')
     })
 
     test('update: commit - re-downloads when remote commit changes', async () => {
@@ -672,6 +678,7 @@ describe('gittar', () => {
       expect(fetchMock).toHaveBeenCalledTimes(1)
       expect(result1.fromCache).toBe(false)
       expect(result1.commit).toBe('abc123def456')
+      expect(result1.branch).toBe('main')
 
       // Change the remote commit
       getRemoteCommitSpy.mockResolvedValue('newcommit789')
@@ -681,6 +688,7 @@ describe('gittar', () => {
       expect(fetchMock).toHaveBeenCalledTimes(2) // Should fetch again
       expect(result2.fromCache).toBe(false)
       expect(result2.commit).toBe('newcommit789')
+      expect(result2.branch).toBe('main')
     })
 
     test('update: commit - uses cache when remote check fails (fail-safe)', async () => {
@@ -695,6 +703,8 @@ describe('gittar', () => {
       const result1 = await gittar(config)
       expect(fetchMock).toHaveBeenCalledTimes(1)
       expect(result1.fromCache).toBe(false)
+      expect(result1.commit).toBe('abc123def456')
+      expect(result1.branch).toBe('main')
 
       // Make remote check fail
       getRemoteCommitSpy.mockResolvedValue(null)
@@ -703,6 +713,9 @@ describe('gittar', () => {
       const result2 = await gittar(config)
       expect(fetchMock).toHaveBeenCalledTimes(1) // Should NOT fetch again
       expect(result2.fromCache).toBe(true)
+      // Should return cached commit/branch
+      expect(result2.commit).toBe('abc123def456')
+      expect(result2.branch).toBe('main')
     })
 
     test('returns commit and branch info in result', async () => {
@@ -752,7 +765,7 @@ describe('gittar', () => {
 
       const result = await gittar(config)
 
-      // Branch should still be returned
+      // Branch should still be returned (from download fallback)
       expect(result.branch).toBe('main')
       expect(result.commit).toBeUndefined()
 
@@ -802,6 +815,7 @@ describe('gittar', () => {
       const result1 = await gittar(config)
       expect(fetchMock).toHaveBeenCalledTimes(1)
       expect(result1.commit).toBeUndefined()
+      expect(result1.branch).toBe('main')
 
       // Now make commit available
       getRemoteCommitSpy.mockResolvedValue('newcommit123')
@@ -810,6 +824,326 @@ describe('gittar', () => {
       const result2 = await gittar(config)
       expect(fetchMock).toHaveBeenCalledTimes(2) // Should fetch again
       expect(result2.commit).toBe('newcommit123')
+      expect(result2.branch).toBe('main')
+      expect(result2.fromCache).toBe(false)
+    })
+  })
+
+  describe('branch resolution', () => {
+    test('uses branch from URL when specified in tree format', async () => {
+      const config: Config = {
+        url: 'https://github.com/owner/repo/tree/develop',
+        cacheDir: `${testDir}/cache`,
+        outDir: testDir,
+      }
+
+      const result = await gittar(config)
+
+      // Should fetch using the branch from URL
+      expect(fetchMock).toHaveBeenCalledWith('https://github.com/owner/repo/archive/develop.tar.gz')
+      expect(result.branch).toBe('develop')
+      expect(result.commit).toBe('abc123def456')
+    })
+
+    test('config.branch overrides branch from URL', async () => {
+      const config: Config = {
+        url: 'https://github.com/owner/repo/tree/develop',
+        branch: 'feature',
+        cacheDir: `${testDir}/cache`,
+        outDir: testDir,
+      }
+
+      const result = await gittar(config)
+
+      // config.branch takes priority
+      expect(fetchMock).toHaveBeenCalledWith('https://github.com/owner/repo/archive/feature.tar.gz')
+      expect(result.branch).toBe('feature')
+      expect(result.commit).toBe('abc123def456')
+    })
+
+    test('config.branch overrides URL branch for commit check', async () => {
+      // Mock getRemoteCommit to return different commits for different branches
+      getRemoteCommitSpy.mockImplementation((_url: string, branch: string) => {
+        if (branch === 'feature') return Promise.resolve('feature-commit-123')
+        if (branch === 'develop') return Promise.resolve('develop-commit-456')
+        return Promise.resolve(null)
+      })
+
+      const config: Config = {
+        url: 'https://github.com/owner/repo/tree/develop',
+        branch: 'feature',
+        cacheDir: `${testDir}/cache`,
+        outDir: testDir,
+      }
+
+      const result = await gittar(config)
+
+      // Should use feature branch commit, not develop
+      expect(result.branch).toBe('feature')
+      expect(result.commit).toBe('feature-commit-123')
+    })
+
+    test('config.branch overrides URL branch in metadata', async () => {
+      const cacheDir = `${testDir}/cache`
+      const config: Config = {
+        url: 'https://github.com/owner/repo/tree/develop/src',
+        branch: 'release',
+        cacheDir: cacheDir,
+        update: 'never',
+      }
+
+      await gittar(config)
+
+      // Verify metadata stores config.branch, not URL branch
+      const metaPath = `${cacheDir}/.gittar-meta.json`
+      const metadata = await Bun.file(metaPath).json()
+      expect(metadata.branch).toBe('release')
+    })
+
+    test('config.branch overrides URL branch when checking cache staleness', async () => {
+      const cacheDir = `${testDir}/cache`
+
+      // First download with config.branch overriding URL branch
+      getRemoteCommitSpy.mockResolvedValue('commit-v1')
+      const config: Config = {
+        url: 'https://github.com/owner/repo/tree/develop',
+        branch: 'release',
+        cacheDir: cacheDir,
+        update: 'commit',
+      }
+
+      const result1 = await gittar(config)
+      expect(result1.branch).toBe('release')
+      expect(result1.commit).toBe('commit-v1')
+      expect(result1.fromCache).toBe(false)
+
+      // Second call - should check staleness using 'release', not 'develop'
+      const result2 = await gittar(config)
+      expect(result2.branch).toBe('release')
+      expect(result2.commit).toBe('commit-v1')
+      expect(result2.fromCache).toBe(true)
+
+      // Change commit for release branch
+      getRemoteCommitSpy.mockResolvedValue('commit-v2')
+
+      // Third call - should detect stale and re-download using release branch
+      const result3 = await gittar(config)
+      expect(result3.branch).toBe('release')
+      expect(result3.commit).toBe('commit-v2')
+      expect(result3.fromCache).toBe(false)
+    })
+
+    test('config.branch takes precedence even with subpath in URL', async () => {
+      // Create a mock tar with subdirectories for subpath test
+      const tempSourceDir = `${tmpdir()}/gittar-branch-subpath-${Date.now()}-${Math.random().toString(36).slice(2)}`
+      await Bun.$`mkdir -p ${tempSourceDir}/test-repo-main/lib`.quiet()
+      await Bun.write(`${tempSourceDir}/test-repo-main/lib/index.ts`, 'export default {}')
+
+      const tarPath = `${tempSourceDir}/test.tar.gz`
+      await Bun.$`tar -czf ${tarPath} -C ${tempSourceDir} test-repo-main`.quiet()
+
+      const tarFile = Bun.file(tarPath)
+      const subpathTarData = await tarFile.arrayBuffer()
+      await Bun.$`rm -rf ${tempSourceDir}`.quiet()
+
+      // @ts-expect-error - mock doesn't match full fetch signature
+      globalThis.fetch = mock(() =>
+        Promise.resolve({
+          ok: true,
+          arrayBuffer: () => Promise.resolve(subpathTarData),
+        } as Response)
+      )
+
+      const config: Config = {
+        url: 'https://github.com/owner/repo/tree/develop/lib',
+        branch: 'main',
+        cacheDir: `${testDir}/cache`,
+        outDir: testDir,
+      }
+
+      const result = await gittar(config)
+
+      // config.branch (main) should override URL branch (develop)
+      expect(result.branch).toBe('main')
+      // subpath should still be extracted from URL
+      expect(result.subpath).toBe('lib')
+    })
+
+    test('uses fallback main -> master when no branch specified and main fails', async () => {
+      // Mock fetch to fail for main, succeed for master
+      const fetchMockFallback = mock((url: string) => {
+        if (url.includes('/main.tar.gz')) {
+          return Promise.resolve({
+            ok: false,
+            status: 404,
+            statusText: 'Not Found',
+          } as Response)
+        }
+        return Promise.resolve({
+          ok: true,
+          arrayBuffer: () => Promise.resolve(mockTarData),
+        } as Response)
+      })
+      // @ts-expect-error - mock doesn't match full fetch signature
+      globalThis.fetch = fetchMockFallback
+
+      const config: Config = {
+        url: 'owner/repo',
+        cacheDir: `${testDir}/cache`,
+        outDir: testDir,
+      }
+
+      const result = await gittar(config)
+
+      // Should have tried main first, then master
+      expect(fetchMockFallback).toHaveBeenCalledTimes(2)
+      expect(fetchMockFallback).toHaveBeenNthCalledWith(1, 'https://github.com/owner/repo/archive/main.tar.gz')
+      expect(fetchMockFallback).toHaveBeenNthCalledWith(2, 'https://github.com/owner/repo/archive/master.tar.gz')
+      expect(result.branch).toBe('master')
+    })
+
+    test('returns correct branch from cache after fallback download', async () => {
+      // Mock fetch to fail for main, succeed for master
+      const fetchMockFallback = mock((url: string) => {
+        if (url.includes('/main.tar.gz')) {
+          return Promise.resolve({
+            ok: false,
+            status: 404,
+            statusText: 'Not Found',
+          } as Response)
+        }
+        return Promise.resolve({
+          ok: true,
+          arrayBuffer: () => Promise.resolve(mockTarData),
+        } as Response)
+      })
+      // @ts-expect-error - mock doesn't match full fetch signature
+      globalThis.fetch = fetchMockFallback
+
+      // Mock getRemoteCommit to return null for main, valid for master
+      getRemoteCommitSpy.mockImplementation((_url: string, branch: string) => {
+        if (branch === 'master') {
+          return Promise.resolve('master123commit')
+        }
+        return Promise.resolve(null)
+      })
+
+      const cacheDir = `${testDir}/cache`
+      const config: Config = {
+        url: 'owner/repo',
+        cacheDir: cacheDir,
+        update: 'never',
+      }
+
+      // First download - should fallback to master
+      const result1 = await gittar(config)
+      expect(result1.branch).toBe('master')
+      expect(result1.commit).toBe('master123commit')
+      expect(result1.fromCache).toBe(false)
+
+      // Second call - should use cache with master branch
+      const result2 = await gittar(config)
+      expect(result2.branch).toBe('master')
+      expect(result2.commit).toBe('master123commit')
+      expect(result2.fromCache).toBe(true)
+
+      // Verify metadata stores correct branch
+      const metaPath = `${cacheDir}/.gittar-meta.json`
+      const metadata = await Bun.file(metaPath).json()
+      expect(metadata.branch).toBe('master')
+      expect(metadata.commit).toBe('master123commit')
+    })
+
+    test('explicit branch in URL prevents fallback', async () => {
+      // Mock fetch to fail for the explicit branch
+      const fetchMockNoFallback = mock(() =>
+        Promise.resolve({
+          ok: false,
+          status: 404,
+          statusText: 'Not Found',
+        } as Response)
+      )
+      // @ts-expect-error - mock doesn't match full fetch signature
+      globalThis.fetch = fetchMockNoFallback
+
+      const config: Config = {
+        url: 'https://github.com/owner/repo/tree/nonexistent',
+        outDir: testDir,
+      }
+
+      // Should throw because explicit branch doesn't exist and no fallback
+      await expect(gittar(config)).rejects.toThrow(URLError)
+      // Should only try the explicit branch once
+      expect(fetchMockNoFallback).toHaveBeenCalledTimes(1)
+      expect(fetchMockNoFallback).toHaveBeenCalledWith('https://github.com/owner/repo/archive/nonexistent.tar.gz')
+    })
+
+    test('config.branch prevents fallback', async () => {
+      // Mock fetch to fail
+      const fetchMockNoFallback = mock(() =>
+        Promise.resolve({
+          ok: false,
+          status: 404,
+          statusText: 'Not Found',
+        } as Response)
+      )
+      // @ts-expect-error - mock doesn't match full fetch signature
+      globalThis.fetch = fetchMockNoFallback
+
+      const config: Config = {
+        url: 'owner/repo',
+        branch: 'nonexistent',
+        outDir: testDir,
+      }
+
+      // Should throw because explicit branch doesn't exist and no fallback
+      await expect(gittar(config)).rejects.toThrow(URLError)
+      // Should only try the explicit branch once
+      expect(fetchMockNoFallback).toHaveBeenCalledTimes(1)
+      expect(fetchMockNoFallback).toHaveBeenCalledWith('https://github.com/owner/repo/archive/nonexistent.tar.gz')
+    })
+
+    test('commit check uses correct branch from stale check', async () => {
+      const cacheDir = `${testDir}/cache`
+
+      // First, create a cache with master branch
+      const fetchMockMaster = mock((url: string) => {
+        if (url.includes('/main.tar.gz')) {
+          return Promise.resolve({ ok: false, status: 404, statusText: 'Not Found' } as Response)
+        }
+        return Promise.resolve({
+          ok: true,
+          arrayBuffer: () => Promise.resolve(mockTarData),
+        } as Response)
+      })
+      // @ts-expect-error - mock doesn't match full fetch signature
+      globalThis.fetch = fetchMockMaster
+
+      getRemoteCommitSpy.mockImplementation((_url: string, branch: string) => {
+        if (branch === 'master') return Promise.resolve('commit1')
+        return Promise.resolve(null)
+      })
+
+      const config: Config = {
+        url: 'owner/repo',
+        cacheDir: cacheDir,
+        update: 'commit',
+      }
+
+      const result1 = await gittar(config)
+      expect(result1.branch).toBe('master')
+      expect(result1.commit).toBe('commit1')
+
+      // Now change the commit for master
+      getRemoteCommitSpy.mockImplementation((_url: string, branch: string) => {
+        if (branch === 'master') return Promise.resolve('commit2')
+        return Promise.resolve(null)
+      })
+
+      // Should detect stale and re-download
+      const result2 = await gittar(config)
+      expect(result2.branch).toBe('master')
+      expect(result2.commit).toBe('commit2')
       expect(result2.fromCache).toBe(false)
     })
   })

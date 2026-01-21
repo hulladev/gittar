@@ -5,29 +5,34 @@ import { URLError } from '../src/errors'
 import type { Config } from '../src/types.public'
 
 describe('parseRepoInfo', () => {
-  test('parses GitHub URL', () => {
+  test('parses GitHub URL (no explicit branch)', () => {
     const result = parseRepoInfo('https://github.com/owner/repo')
-    expect(result).toEqual({ owner: 'owner', repo: 'repo' })
+    expect(result).toEqual({ owner: 'owner', repo: 'repo', branch: undefined, subpath: undefined })
   })
 
-  test('parses short format', () => {
+  test('parses short format (no explicit branch)', () => {
     const result = parseRepoInfo('owner/repo')
-    expect(result).toEqual({ owner: 'owner', repo: 'repo' })
+    expect(result).toEqual({ owner: 'owner', repo: 'repo', branch: undefined, subpath: undefined })
   })
 
-  test('parses SSH format', () => {
+  test('parses SSH format (no explicit branch)', () => {
     const result = parseRepoInfo('git@github.com:owner/repo.git')
-    expect(result).toEqual({ owner: 'owner', repo: 'repo' })
+    expect(result).toEqual({ owner: 'owner', repo: 'repo', branch: undefined, subpath: undefined })
   })
 
-  test('parses GitLab URL', () => {
+  test('parses GitLab URL (no explicit branch)', () => {
     const result = parseRepoInfo('https://gitlab.com/owner/repo')
-    expect(result).toEqual({ owner: 'owner', repo: 'repo' })
+    expect(result).toEqual({ owner: 'owner', repo: 'repo', branch: undefined, subpath: undefined })
   })
 
-  test('parses tree URL', () => {
-    const result = parseRepoInfo('https://github.com/owner/repo/tree/branch')
-    expect(result).toEqual({ owner: 'owner', repo: 'repo' })
+  test('parses tree URL with branch', () => {
+    const result = parseRepoInfo('https://github.com/owner/repo/tree/develop')
+    expect(result).toEqual({ owner: 'owner', repo: 'repo', branch: 'develop', subpath: undefined })
+  })
+
+  test('parses tree URL with branch and subpath', () => {
+    const result = parseRepoInfo('https://github.com/owner/repo/tree/master/src/components')
+    expect(result).toEqual({ owner: 'owner', repo: 'repo', branch: 'master', subpath: 'src/components' })
   })
 
   test('throws URLError for invalid input', () => {
@@ -39,9 +44,9 @@ describe('parseRepoInfo', () => {
     expect(() => parseRepoInfo('owner')).toThrow(URLError)
   })
 
-  test('handles repo names with special characters', () => {
+  test('handles repo names with special characters (no explicit branch)', () => {
     const result = parseRepoInfo('owner/my-awesome_repo.js')
-    expect(result).toEqual({ owner: 'owner', repo: 'my-awesome_repo.js' })
+    expect(result).toEqual({ owner: 'owner', repo: 'my-awesome_repo.js', branch: undefined, subpath: undefined })
   })
 })
 
