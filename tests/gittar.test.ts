@@ -1,14 +1,16 @@
-import { test, expect, describe, beforeEach, afterEach, mock } from 'bun:test'
+import { test, expect, describe, beforeEach, afterEach, mock, spyOn } from 'bun:test'
 import { tmpdir } from 'os'
 import gittar from '../src/gittar'
 import { URLError } from '../src/errors'
 import type { Config } from '../src/types.public'
+import * as commitModule from '../src/commit'
 
 describe('gittar', () => {
   let testDir: string
   let originalFetch: typeof globalThis.fetch
   let mockTarData: ArrayBuffer
   let fetchMock: ReturnType<typeof mock>
+  let getRemoteCommitSpy: ReturnType<typeof spyOn>
 
   beforeEach(async () => {
     testDir = `${tmpdir()}/gittar-integration-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -36,17 +38,22 @@ describe('gittar', () => {
     )
     // @ts-expect-error - fetchMock is a mock function, does not need 100% match
     globalThis.fetch = fetchMock
+
+    // Mock getRemoteCommit to avoid actual git ls-remote calls
+    getRemoteCommitSpy = spyOn(commitModule, 'getRemoteCommit').mockResolvedValue('abc123def456')
   })
 
   afterEach(async () => {
     await Bun.$`rm -rf ${testDir}`.quiet()
     globalThis.fetch = originalFetch
+    getRemoteCommitSpy.mockRestore()
   })
 
   test('downloads and extracts repository', async () => {
     const config: Config = {
       url: 'owner/repo',
-      outdir: testDir,
+      cacheDir: testDir,
+      outDir: testDir,
     }
 
     const result = await gittar(config)
@@ -66,11 +73,12 @@ describe('gittar', () => {
     expect(packageExists).toBe(true)
   })
 
-  test('uses cache when available and update is false', async () => {
+  test('uses cache when available with update: never', async () => {
     const cacheDir = `${testDir}/cache`
     const config: Config = {
       url: 'owner/repo',
-      cachedir: cacheDir,
+      cacheDir: cacheDir,
+      update: 'never',
     }
 
     const result1 = await gittar(config)
@@ -90,14 +98,14 @@ describe('gittar', () => {
     const cacheDir = `${testDir}/cache`
     const config: Config = {
       url: 'owner/repo',
-      cachedir: cacheDir,
+      cacheDir: cacheDir,
     }
 
     const result1 = await gittar(config)
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(result1.fromCache).toBe(false)
 
-    const result2 = await gittar({ ...config, update: true })
+    const result2 = await gittar({ ...config, update: 'always' })
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(result2.fromCache).toBe(false)
   })
@@ -106,7 +114,7 @@ describe('gittar', () => {
     const cacheDir = `${testDir}/custom-cache`
     const config: Config = {
       url: 'owner/repo',
-      cachedir: cacheDir,
+      cacheDir: cacheDir,
     }
 
     const result = await gittar(config)
@@ -119,18 +127,22 @@ describe('gittar', () => {
     expect(exitCode).toBe(0)
   })
 
-  test('uses outdir when cachedir not specified', async () => {
+  test('outDir is separate from cacheDir when only outDir specified', async () => {
     const outDir = `${testDir}/output`
     const config: Config = {
       url: 'owner/repo',
-      outdir: outDir,
+      outDir: outDir,
+      update: 'never', // Use 'never' to avoid remote commit check
     }
 
     const result = await gittar(config)
 
+    // Files are copied to outDir
     expect(result.files.every((f) => f.startsWith(outDir))).toBe(true)
-    expect(result.cacheDir).toBe(outDir)
     expect(result.outDir).toBe(outDir)
+    // cacheDir defaults to standard location, not outDir
+    expect(result.cacheDir).not.toBe(outDir)
+    expect(result.cacheDir).toContain('.cache/hulla/gittar')
   })
 
   test('uses default cache location when neither cachedir nor outdir specified', async () => {
@@ -151,7 +163,7 @@ describe('gittar', () => {
     const config: Config = {
       url: 'owner/repo',
       branch: 'develop',
-      outdir: testDir,
+      outDir: testDir,
     }
 
     await gittar(config)
@@ -171,7 +183,7 @@ describe('gittar', () => {
 
     const config: Config = {
       url: 'owner/nonexistent-repo',
-      outdir: testDir,
+      outDir: testDir,
     }
 
     expect(gittar(config)).rejects.toThrow(URLError)
@@ -180,7 +192,7 @@ describe('gittar', () => {
   test('throws URLError for invalid URL', async () => {
     const config: Config = {
       url: 'invalid',
-      outdir: testDir,
+      outDir: testDir,
     }
 
     expect(gittar(config)).rejects.toThrow(URLError)
@@ -189,7 +201,9 @@ describe('gittar', () => {
   test('handles GitHub URL', async () => {
     const config: Config = {
       url: 'https://github.com/owner/repo',
-      outdir: testDir,
+      cacheDir: `${testDir}/github-cache`,
+      outDir: testDir,
+      update: 'always',
     }
 
     await gittar(config)
@@ -200,7 +214,9 @@ describe('gittar', () => {
   test('handles GitLab URL', async () => {
     const config: Config = {
       url: 'https://gitlab.com/owner/repo',
-      outdir: testDir,
+      cacheDir: `${testDir}/gitlab-cache`,
+      outDir: testDir,
+      update: 'always',
     }
 
     await gittar(config)
@@ -211,7 +227,9 @@ describe('gittar', () => {
   test('handles SSH format', async () => {
     const config: Config = {
       url: 'git@github.com:owner/repo.git',
-      outdir: testDir,
+      cacheDir: `${testDir}/ssh-cache`,
+      outDir: testDir,
+      update: 'always',
     }
 
     await gittar(config)
@@ -222,7 +240,7 @@ describe('gittar', () => {
   test('returns sorted list of files', async () => {
     const config: Config = {
       url: 'owner/repo',
-      outdir: testDir,
+      outDir: testDir,
     }
 
     const result = await gittar(config)
@@ -237,8 +255,8 @@ describe('gittar', () => {
     const outDir = `${testDir}/output`
     const config: Config = {
       url: 'owner/repo',
-      cachedir: cacheDir,
-      outdir: outDir,
+      cacheDir: cacheDir,
+      outDir: outDir,
     }
 
     await gittar(config)
@@ -255,8 +273,8 @@ describe('gittar', () => {
     const outDir = `${testDir}/output`
     const config: Config = {
       url: 'owner/repo',
-      cachedir: cacheDir,
-      outdir: outDir,
+      cacheDir: cacheDir,
+      outDir: outDir,
     }
 
     const result1 = await gittar(config)
@@ -284,8 +302,8 @@ describe('gittar', () => {
     const outDir = `${testDir}/output`
     const config: Config = {
       url: 'owner/repo',
-      cachedir: cacheDir,
-      outdir: outDir,
+      cacheDir: cacheDir,
+      outDir: outDir,
     }
 
     const result = await gittar(config)
@@ -300,8 +318,8 @@ describe('gittar', () => {
     const cacheDir = `${testDir}/cache`
     const config: Config = {
       url: 'owner/repo',
-      cachedir: cacheDir,
-      outdir: cacheDir,
+      cacheDir: cacheDir,
+      outDir: cacheDir,
     }
 
     const result = await gittar(config)
@@ -316,10 +334,10 @@ describe('gittar', () => {
     const outDir1 = `${testDir}/output1`
     const outDir2 = `${testDir}/output2`
 
-    await gittar({ url: 'owner/repo', cachedir: cacheDir, outdir: outDir1 })
+    await gittar({ url: 'owner/repo', cacheDir: cacheDir, outDir: outDir1 })
     expect(fetchMock).toHaveBeenCalledTimes(1)
 
-    await gittar({ url: 'owner/repo', cachedir: cacheDir, outdir: outDir2 })
+    await gittar({ url: 'owner/repo', cacheDir: cacheDir, outDir: outDir2 })
     expect(fetchMock).toHaveBeenCalledTimes(1)
 
     const out1ReadmeExists = await Bun.file(`${outDir1}/README.md`).exists()
@@ -336,14 +354,14 @@ describe('gittar', () => {
     const outDir = `${testDir}/output`
     const config: Config = {
       url: 'owner/repo',
-      cachedir: cacheDir,
-      outdir: outDir,
+      cacheDir: cacheDir,
+      outDir: outDir,
     }
 
     await gittar(config)
     expect(fetchMock).toHaveBeenCalledTimes(1)
 
-    await gittar({ ...config, update: true })
+    await gittar({ ...config, update: 'always' })
     expect(fetchMock).toHaveBeenCalledTimes(2)
 
     const cacheReadmeExists = await Bun.file(`${cacheDir}/README.md`).exists()
@@ -382,7 +400,7 @@ describe('gittar', () => {
 
     const config: Config = {
       url: 'https://github.com/owner/repo/tree/main/src',
-      outdir: testDir,
+      outDir: testDir,
     }
 
     const result = await gittar(config)
@@ -435,7 +453,7 @@ describe('gittar', () => {
 
     const config: Config = {
       url: 'owner/repo',
-      outdir: testDir,
+      outDir: testDir,
       subpath: 'docs',
     }
 
@@ -481,7 +499,7 @@ describe('gittar', () => {
     const cacheDir = `${testDir}/cache`
     const config: Config = {
       url: 'owner/repo',
-      cachedir: cacheDir,
+      cacheDir: cacheDir,
       subpath: 'src',
     }
 
@@ -536,8 +554,8 @@ describe('gittar', () => {
     const outDir = `${testDir}/output`
     const config: Config = {
       url: 'owner/repo',
-      cachedir: cacheDir,
-      outdir: outDir,
+      cacheDir: cacheDir,
+      outDir: outDir,
       subpath: 'src',
     }
 
@@ -574,5 +592,151 @@ describe('gittar', () => {
     expect(outIndexExists).toBe(true)
     expect(outReadmeExists).toBe(false)
     expect(outGuideExists).toBe(false)
+  })
+
+  describe('update strategies', () => {
+    test('update: always - always re-downloads even when cache exists', async () => {
+      const cacheDir = `${testDir}/cache`
+      const config: Config = {
+        url: 'owner/repo',
+        cacheDir: cacheDir,
+        update: 'always',
+      }
+
+      // First download
+      const result1 = await gittar(config)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(result1.fromCache).toBe(false)
+
+      // Second call should still download (always strategy)
+      const result2 = await gittar(config)
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+      expect(result2.fromCache).toBe(false)
+    })
+
+    test('update: never - always uses cache when it exists', async () => {
+      const cacheDir = `${testDir}/cache`
+      const config: Config = {
+        url: 'owner/repo',
+        cacheDir: cacheDir,
+        update: 'never',
+      }
+
+      // First download
+      const result1 = await gittar(config)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(result1.fromCache).toBe(false)
+      expect(result1.commit).toBe('abc123def456')
+      expect(result1.branch).toBe('main')
+
+      // Second call should use cache without checking remote
+      const result2 = await gittar(config)
+      expect(fetchMock).toHaveBeenCalledTimes(1) // No additional fetch
+      expect(getRemoteCommitSpy).toHaveBeenCalledTimes(1) // Only called once during first download
+      expect(result2.fromCache).toBe(true)
+      expect(result2.commit).toBe('abc123def456')
+      expect(result2.branch).toBe('main')
+    })
+
+    test('update: commit (default) - uses cache when commit unchanged', async () => {
+      const cacheDir = `${testDir}/cache`
+      const config: Config = {
+        url: 'owner/repo',
+        cacheDir: cacheDir,
+        // update defaults to 'commit'
+      }
+
+      // First download
+      const result1 = await gittar(config)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(result1.fromCache).toBe(false)
+      expect(result1.commit).toBe('abc123def456')
+
+      // Second call - same commit, should use cache
+      const result2 = await gittar(config)
+      expect(fetchMock).toHaveBeenCalledTimes(1) // No additional fetch
+      expect(result2.fromCache).toBe(true)
+      expect(result2.commit).toBe('abc123def456')
+    })
+
+    test('update: commit - re-downloads when remote commit changes', async () => {
+      const cacheDir = `${testDir}/cache`
+      const config: Config = {
+        url: 'owner/repo',
+        cacheDir: cacheDir,
+        update: 'commit',
+      }
+
+      // First download
+      const result1 = await gittar(config)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(result1.fromCache).toBe(false)
+      expect(result1.commit).toBe('abc123def456')
+
+      // Change the remote commit
+      getRemoteCommitSpy.mockResolvedValue('newcommit789')
+
+      // Second call - different commit, should re-download
+      const result2 = await gittar(config)
+      expect(fetchMock).toHaveBeenCalledTimes(2) // Should fetch again
+      expect(result2.fromCache).toBe(false)
+      expect(result2.commit).toBe('newcommit789')
+    })
+
+    test('update: commit - uses cache when remote check fails (fail-safe)', async () => {
+      const cacheDir = `${testDir}/cache`
+      const config: Config = {
+        url: 'owner/repo',
+        cacheDir: cacheDir,
+        update: 'commit',
+      }
+
+      // First download
+      const result1 = await gittar(config)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(result1.fromCache).toBe(false)
+
+      // Make remote check fail
+      getRemoteCommitSpy.mockResolvedValue(null)
+
+      // Second call - remote check fails, should use cache (fail-safe)
+      const result2 = await gittar(config)
+      expect(fetchMock).toHaveBeenCalledTimes(1) // Should NOT fetch again
+      expect(result2.fromCache).toBe(true)
+    })
+
+    test('returns commit and branch info in result', async () => {
+      const config: Config = {
+        url: 'owner/repo',
+        outDir: testDir,
+      }
+
+      const result = await gittar(config)
+
+      expect(result.commit).toBe('abc123def456')
+      expect(result.branch).toBe('main')
+    })
+
+    test('stores and retrieves metadata correctly', async () => {
+      const cacheDir = `${testDir}/cache`
+      const config: Config = {
+        url: 'owner/repo',
+        cacheDir: cacheDir,
+        update: 'never',
+      }
+
+      // First download should create metadata
+      await gittar(config)
+
+      // Check metadata file exists and has correct content
+      const metaPath = `${cacheDir}/.gittar-meta.json`
+      const metaFile = Bun.file(metaPath)
+      expect(await metaFile.exists()).toBe(true)
+
+      const metadata = await metaFile.json()
+      expect(metadata.commit).toBe('abc123def456')
+      expect(metadata.branch).toBe('main')
+      expect(metadata.timestamp).toBeGreaterThan(0)
+    })
   })
 })

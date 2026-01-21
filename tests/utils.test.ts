@@ -49,19 +49,20 @@ describe('getCacheDir', () => {
   test('uses cachedir when provided', () => {
     const config: Config = {
       url: 'owner/repo',
-      cachedir: '/custom/cache',
+      cacheDir: '/custom/cache',
     }
     const result = getCacheDir(config, 'owner', 'repo')
     expect(result).toBe('/custom/cache')
   })
 
-  test('uses outdir when cachedir not provided', () => {
+  test('uses default path when only outDir provided (outDir does not affect cacheDir)', () => {
     const config: Config = {
       url: 'owner/repo',
-      outdir: '/custom/output',
+      outDir: '/custom/output',
     }
     const result = getCacheDir(config, 'owner', 'repo')
-    expect(result).toBe('/custom/output')
+    // getCacheDir only uses cacheDir, not outDir
+    expect(result).toBe(`${homedir()}/.cache/hulla/gittar/owner/repo`)
   })
 
   test('uses default path when neither cachedir nor outdir provided', () => {
@@ -75,8 +76,8 @@ describe('getCacheDir', () => {
   test('prioritizes cachedir over outdir', () => {
     const config: Config = {
       url: 'owner/repo',
-      cachedir: '/custom/cache',
-      outdir: '/custom/output',
+      cacheDir: '/custom/cache',
+      outDir: '/custom/output',
     }
     const result = getCacheDir(config, 'owner', 'repo')
     expect(result).toBe('/custom/cache')
@@ -97,14 +98,14 @@ describe('getCacheDir', () => {
   test('uses empty strings for cachedir and outdir', () => {
     const config1: Config = {
       url: 'owner/repo',
-      cachedir: '',
+      cacheDir: '',
     }
     const result1 = getCacheDir(config1, 'owner', 'repo')
     expect(result1).toBe(`${homedir()}/.cache/hulla/gittar/owner/repo`)
 
     const config2: Config = {
       url: 'owner/repo',
-      outdir: '',
+      outDir: '',
     }
     const result2 = getCacheDir(config2, 'owner', 'repo')
     expect(result2).toBe(`${homedir()}/.cache/hulla/gittar/owner/repo`)

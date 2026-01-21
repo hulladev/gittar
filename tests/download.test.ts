@@ -26,7 +26,8 @@ describe('downloadTar', () => {
 
     const result = await downloadTar(config)
 
-    expect(result).toBe(mockData)
+    expect(result.data).toBe(mockData)
+    expect(result.branch).toBe('develop')
     expect(globalThis.fetch).toHaveBeenCalledTimes(1)
     expect(globalThis.fetch).toHaveBeenCalledWith('https://github.com/owner/repo/archive/develop.tar.gz')
 
@@ -58,7 +59,8 @@ describe('downloadTar', () => {
 
     const result = await downloadTar(config)
 
-    expect(result).toBe(mockData)
+    expect(result.data).toBe(mockData)
+    expect(result.branch).toBe('master')
     expect(globalThis.fetch).toHaveBeenCalledTimes(2)
     expect(globalThis.fetch).toHaveBeenNthCalledWith(1, 'https://github.com/owner/repo/archive/main.tar.gz')
     expect(globalThis.fetch).toHaveBeenNthCalledWith(2, 'https://github.com/owner/repo/archive/master.tar.gz')
@@ -81,7 +83,8 @@ describe('downloadTar', () => {
 
     const result = await downloadTar(config)
 
-    expect(result).toBe(mockData)
+    expect(result.data).toBe(mockData)
+    expect(result.branch).toBe('main')
     expect(globalThis.fetch).toHaveBeenCalledTimes(1)
 
     globalThis.fetch = originalFetch
@@ -164,7 +167,8 @@ describe('downloadTar', () => {
 
     const result = await downloadTar(config)
 
-    expect(result).toBe(mockData)
+    expect(result.data).toBe(mockData)
+    expect(result.branch).toBe('feature-branch')
     expect(globalThis.fetch).toHaveBeenCalledTimes(1)
     expect(globalThis.fetch).toHaveBeenCalledWith(
       'https://gitlab.com/owner/repo/-/archive/feature-branch/repo-feature-branch.tar.gz'
