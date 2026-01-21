@@ -74,6 +74,7 @@ export function parseInput(
   hostname: string
   ref: string
   subpath?: string
+  refFromUrl?: boolean // true if ref was explicitly in the URL (e.g., /tree/branch/)
 } | null {
   // Handle SSH format: git@github.com:user/repo.git
   if (input.startsWith('git@')) {
@@ -184,6 +185,7 @@ function parseUrlFormat(
   hostname: string
   ref: string
   subpath?: string
+  refFromUrl?: boolean
 } | null {
   const pathParts = url.pathname.split('/').filter(Boolean)
 
@@ -199,6 +201,7 @@ function parseUrlFormat(
   // Check for tree/blob/src patterns to extract branch and subpath
   let ref = defaultBranch || 'main'
   let subpath: string | undefined = undefined
+  let refFromUrl = false
 
   if (rest.length > 0) {
     const type = rest[0] // 'tree', 'blob', 'raw', 'src', etc.
@@ -208,7 +211,11 @@ function parseUrlFormat(
     if (type === 'tree' || type === 'blob' || type === 'raw' || type === 'src' || type === 'browse') {
       // Format: /tree/branch/path/to/folder or /blob/branch/path/to/file
       if (rest.length >= 2 && rest[1]) {
-        ref = rest[1]
+        // Only use URL's branch if no explicit defaultBranch was provided
+        if (!defaultBranch) {
+          ref = rest[1]
+          refFromUrl = true
+        }
       }
       // Extract subpath if present (everything after branch)
       if (rest.length > 2) {
@@ -223,6 +230,7 @@ function parseUrlFormat(
     hostname: url.hostname,
     ref,
     subpath,
+    refFromUrl,
   }
 }
 

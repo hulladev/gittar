@@ -19,12 +19,12 @@ export function normalizePath(path: string): string {
 }
 
 /**
- * Extracts owner, repo, and optional subpath from a URL or short format input
+ * Extracts owner, repo, optional branch/ref, and optional subpath from a URL or short format input
  * @param url - Repository URL or identifier
- * @returns Object containing owner, repo, and optional subpath
+ * @returns Object containing owner, repo, optional branch (only if explicit in URL), and optional subpath
  * @throws URLError if parsing fails
  */
-export function parseRepoInfo(url: string): { owner: string; repo: string; subpath?: string } {
+export function parseRepoInfo(url: string): { owner: string; repo: string; branch?: string; subpath?: string } {
   const parsed = parseInput(url)
 
   if (!parsed) {
@@ -34,6 +34,8 @@ export function parseRepoInfo(url: string): { owner: string; repo: string; subpa
   return {
     owner: parsed.owner,
     repo: parsed.repo,
+    // Only return branch if it was explicitly in the URL (e.g., /tree/branch/)
+    branch: parsed.refFromUrl ? parsed.ref : undefined,
     subpath: parsed.subpath,
   }
 }

@@ -47,6 +47,25 @@ export async function getRemoteCommit(repoUrl: string, branch: string): Promise<
 }
 
 /**
+ * Gets the remote commit SHA with fallback branches (main → master)
+ * @param repoUrl - Repository URL (any supported format)
+ * @param branches - Array of branches to try in order (defaults to ['main', 'master'])
+ * @returns Object with commit SHA and branch used, or null values if all failed
+ */
+export async function getRemoteCommitWithFallback(
+  repoUrl: string,
+  branches: string[] = ['main', 'master']
+): Promise<{ commit: string | null; branch: string | null }> {
+  for (const branch of branches) {
+    const commit = await getRemoteCommit(repoUrl, branch)
+    if (commit) {
+      return { commit, branch }
+    }
+  }
+  return { commit: null, branch: null }
+}
+
+/**
  * Reads the cached metadata from a cache directory
  * @param cacheDir - Path to the cache directory
  * @returns The cached metadata, or null if not found
@@ -80,27 +99,42 @@ export async function writeCacheMetadata(cacheDir: string, metadata: CacheMetada
 /**
  * Checks if the cache is stale by comparing remote and cached commit SHAs
  * @param repoUrl - Repository URL
- * @param branch - Branch to check
+ * @param branch - Branch to check (if undefined, will try main then master)
  * @param cacheDir - Path to cache directory
- * @returns Object with isStale boolean and commit info
+ * @returns Object with isStale boolean, commit info, and resolved branch
  */
 export async function checkCacheStale(
   repoUrl: string,
-  branch: string,
+  branch: string | undefined,
   cacheDir: string
 ): Promise<{
   isStale: boolean
   remoteCommit: string | null
+  remoteBranch: string | null
   cachedCommit: string | null
   cachedBranch: string | null
 }> {
-  const [metadata, remoteCommit] = await Promise.all([readCacheMetadata(cacheDir), getRemoteCommit(repoUrl, branch)])
+  const metadata = await readCacheMetadata(cacheDir)
+
+  // Get remote commit - use fallback if no specific branch
+  let remoteCommit: string | null
+  let remoteBranch: string | null
+
+  if (branch) {
+    remoteCommit = await getRemoteCommit(repoUrl, branch)
+    remoteBranch = remoteCommit ? branch : null
+  } else {
+    const result = await getRemoteCommitWithFallback(repoUrl)
+    remoteCommit = result.commit
+    remoteBranch = result.branch
+  }
 
   // If we can't get remote commit, assume not stale (fail-safe to use cache)
-  if (!remoteCommit) {
+  if (!remoteCommit || !remoteBranch) {
     return {
       isStale: false,
       remoteCommit: null,
+      remoteBranch: null,
       cachedCommit: metadata?.commit ?? null,
       cachedBranch: metadata?.branch ?? null,
     }
@@ -111,17 +145,20 @@ export async function checkCacheStale(
     return {
       isStale: true,
       remoteCommit,
+      remoteBranch,
       cachedCommit: null,
       cachedBranch: null,
     }
   }
 
   // Compare commits - if cached commit is unknown, consider stale
-  const isStale = !metadata.commit || metadata.commit !== remoteCommit || metadata.branch !== branch
+  // Also stale if branch changed (e.g., cached was 'master' but now checking 'main')
+  const isStale = !metadata.commit || metadata.commit !== remoteCommit || metadata.branch !== remoteBranch
 
   return {
     isStale,
     remoteCommit,
+    remoteBranch,
     cachedCommit: metadata.commit ?? null,
     cachedBranch: metadata.branch,
   }

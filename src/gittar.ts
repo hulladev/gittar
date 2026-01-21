@@ -36,7 +36,7 @@ export default async function gittar(configOrUrl: Config | string): Promise<Gitt
   // Default update strategy is 'commit'
   const updateStrategy: UpdateStrategy = config.update ?? 'commit'
 
-  // Extract owner, repo, and subpath from URL
+  // Extract owner, repo, branch, and subpath from URL
   const parsed = parseRepoInfo(config.url)
   const owner = parsed.owner
   const repo = parsed.repo
@@ -50,13 +50,16 @@ export default async function gittar(configOrUrl: Config | string): Promise<Gitt
   // Determine output directory (defaults to cacheDir)
   const outdir = config.outDir ? normalizePath(config.outDir) : cacheDir
 
-  // Determine branch to use for remote checks
-  const branchToCheck = config.branch || 'main'
+  // Determine branch: config.branch takes priority, then URL branch, then default 'main'
+  const branchToCheck = config.branch || parsed.branch
 
   let fromCache = false
   let files: string[]
   let commit: string | undefined
   let branch: string | undefined
+  // Track remote commit/branch from stale check to avoid duplicate calls
+  let knownRemoteCommit: string | null = null
+  let knownRemoteBranch: string | null = null
 
   // Check cache based on update strategy
   if (updateStrategy !== 'always') {
@@ -74,6 +77,9 @@ export default async function gittar(configOrUrl: Config | string): Promise<Gitt
       } else {
         // updateStrategy === 'commit' - check if cache is stale
         const staleCheck = await checkCacheStale(config.url, branchToCheck, cacheDir)
+        // Preserve remote commit/branch for potential use after download
+        knownRemoteCommit = staleCheck.remoteCommit
+        knownRemoteBranch = staleCheck.remoteBranch
 
         if (!staleCheck.isStale) {
           useCache = true
@@ -96,12 +102,19 @@ export default async function gittar(configOrUrl: Config | string): Promise<Gitt
   }
 
   // Download tar with branch fallback
+  // If we have an explicit branch (from config or URL), use it to prevent fallback
   fromCache = false
-  const downloadResult = await downloadTar(config)
+  const downloadConfig = branchToCheck ? { ...config, branch: branchToCheck } : config
+  const downloadResult = await downloadTar(downloadConfig)
   branch = downloadResult.branch
 
   // Get the commit SHA for the downloaded branch
-  commit = (await getRemoteCommit(config.url, branch)) ?? undefined
+  // Reuse knownRemoteCommit if we already fetched it for the same branch, otherwise fetch it
+  if (knownRemoteCommit && knownRemoteBranch === branch) {
+    commit = knownRemoteCommit
+  } else {
+    commit = (await getRemoteCommit(config.url, branch)) ?? undefined
+  }
 
   // Always extract full tar to cacheDir for future use
   await extractTar(downloadResult.data, cacheDir)
