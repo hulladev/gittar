@@ -2,18 +2,23 @@ import { getTarUrl } from './getTarUrl'
 import { URLError } from './errors'
 import type { Config } from './types.public'
 
+export type DownloadResult = {
+  data: ArrayBuffer
+  branch: string
+}
+
 /**
  * Downloads tar.gz with automatic branch fallback (main → master)
  * @param config - Configuration object
- * @returns ArrayBuffer containing the downloaded tar.gz data
+ * @returns Object containing the downloaded tar.gz data and the branch used
  * @throws URLError if download fails or platform is unsupported
  */
-export async function downloadTar(config: Config): Promise<ArrayBuffer> {
+export async function downloadTar(config: Config): Promise<DownloadResult> {
   // Determine which branches to try
   const branches = config.branch ? [config.branch] : ['main', 'master']
 
   for (let i = 0; i < branches.length; i++) {
-    const branch = branches[i]
+    const branch = branches[i]!
     const url = getTarUrl(config.url, branch)
 
     if (!url) {
@@ -24,7 +29,10 @@ export async function downloadTar(config: Config): Promise<ArrayBuffer> {
       const response = await fetch(url)
 
       if (response.ok) {
-        return await response.arrayBuffer()
+        return {
+          data: await response.arrayBuffer(),
+          branch,
+        }
       }
 
       // If 404 and not the last branch to try, continue to next branch
