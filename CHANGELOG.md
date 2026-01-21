@@ -1,5 +1,11 @@
 # @hulla/gittar
 
+## 0.0.4
+
+### Patch Changes
+
+- sync commits and autobranches detection
+
 ## 0.0.3
 
 ### Patch Changes
