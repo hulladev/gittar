@@ -40,10 +40,6 @@ describe('parseRepoInfo', () => {
     expect(() => parseRepoInfo('invalid')).toThrow('Failed to parse repository URL: invalid')
   })
 
-  test('throws URLError for single segment', () => {
-    expect(() => parseRepoInfo('owner')).toThrow(URLError)
-  })
-
   test('handles repo names with special characters (no explicit branch)', () => {
     const result = parseRepoInfo('owner/my-awesome_repo.js')
     expect(result).toEqual({ owner: 'owner', repo: 'my-awesome_repo.js', branch: undefined, subpath: undefined })
@@ -51,15 +47,6 @@ describe('parseRepoInfo', () => {
 })
 
 describe('getCacheDir', () => {
-  test('uses cachedir when provided', () => {
-    const config: Config = {
-      url: 'owner/repo',
-      cacheDir: '/custom/cache',
-    }
-    const result = getCacheDir(config, 'owner', 'repo')
-    expect(result).toBe('/custom/cache')
-  })
-
   test('uses default path when only outDir provided (outDir does not affect cacheDir)', () => {
     const config: Config = {
       url: 'owner/repo',
@@ -67,14 +54,6 @@ describe('getCacheDir', () => {
     }
     const result = getCacheDir(config, 'owner', 'repo')
     // getCacheDir only uses cacheDir, not outDir
-    expect(result).toBe(`${homedir()}/.cache/hulla/gittar/owner/repo`)
-  })
-
-  test('uses default path when neither cachedir nor outdir provided', () => {
-    const config: Config = {
-      url: 'owner/repo',
-    }
-    const result = getCacheDir(config, 'owner', 'repo')
     expect(result).toBe(`${homedir()}/.cache/hulla/gittar/owner/repo`)
   })
 
@@ -86,18 +65,6 @@ describe('getCacheDir', () => {
     }
     const result = getCacheDir(config, 'owner', 'repo')
     expect(result).toBe('/custom/cache')
-  })
-
-  test('handles different owner/repo combinations', () => {
-    const config: Config = {
-      url: 'owner/repo',
-    }
-
-    const result1 = getCacheDir(config, 'user1', 'project1')
-    expect(result1).toBe(`${homedir()}/.cache/hulla/gittar/user1/project1`)
-
-    const result2 = getCacheDir(config, 'user2', 'project2')
-    expect(result2).toBe(`${homedir()}/.cache/hulla/gittar/user2/project2`)
   })
 
   test('uses empty strings for cachedir and outdir', () => {

@@ -1,5 +1,6 @@
 import { test, expect, describe } from 'bun:test'
-import { getTarUrl, parseInput } from '../src/getTarUrl'
+import { getTarUrl } from '../src/index'
+import { parseInput } from '../src/getTarUrl'
 
 describe('getTarUrl', () => {
   describe('GitHub', () => {

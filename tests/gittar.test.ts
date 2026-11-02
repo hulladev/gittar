@@ -1,7 +1,7 @@
 import { test, expect, describe, beforeEach, afterEach, mock, spyOn } from 'bun:test'
 import { tmpdir } from 'os'
-import gittar from '../src/gittar'
-import { URLError } from '../src/errors'
+import gittar from '../src/index'
+import { URLError } from '../src/index'
 import type { Config } from '../src/types.public'
 import * as commitModule from '../src/commit'
 

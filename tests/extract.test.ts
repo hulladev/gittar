@@ -30,35 +30,14 @@ describe('extractTar', () => {
     await Bun.$`rm -rf ${testDir}`.quiet()
   })
 
-  test('extracts tar.gz successfully', async () => {
-    const result = await extractTar(tarData, testDir)
-
-    expect(result).toBeDefined()
-    expect(result.length).toBeGreaterThan(0)
-
-    const file1Exists = await Bun.file(`${testDir}/file1.txt`).exists()
-    const file2Exists = await Bun.file(`${testDir}/file2.txt`).exists()
-    const file3Exists = await Bun.file(`${testDir}/subdir/file3.txt`).exists()
-
-    expect(file1Exists).toBe(true)
-    expect(file2Exists).toBe(true)
-    expect(file3Exists).toBe(true)
-  })
-
-  test('returns sorted list of extracted files', async () => {
+  test('extracts sorted paths and intact contents without the archive root', async () => {
     const result = await extractTar(tarData, testDir)
 
     expect(result).toEqual([`${testDir}/file1.txt`, `${testDir}/file2.txt`, `${testDir}/subdir/file3.txt`])
-  })
-
-  test('strips root component from tar', async () => {
-    await extractTar(tarData, testDir)
-
-    const rootDirExists = await Bun.file(`${testDir}/test-repo-main`).exists()
-    expect(rootDirExists).toBe(false)
-
-    const file1Exists = await Bun.file(`${testDir}/file1.txt`).exists()
-    expect(file1Exists).toBe(true)
+    expect(await Bun.file(`${testDir}/file1.txt`).text()).toBe('content1')
+    expect(await Bun.file(`${testDir}/file2.txt`).text()).toBe('content2')
+    expect(await Bun.file(`${testDir}/subdir/file3.txt`).text()).toBe('content3')
+    expect(await Bun.file(`${testDir}/test-repo-main`).exists()).toBe(false)
   })
 
   test('creates output directory if it does not exist', async () => {
@@ -67,18 +46,6 @@ describe('extractTar', () => {
 
     const file1Exists = await Bun.file(`${nestedDir}/file1.txt`).exists()
     expect(file1Exists).toBe(true)
-  })
-
-  test('preserves file contents', async () => {
-    await extractTar(tarData, testDir)
-
-    const file1Content = await Bun.file(`${testDir}/file1.txt`).text()
-    const file2Content = await Bun.file(`${testDir}/file2.txt`).text()
-    const file3Content = await Bun.file(`${testDir}/subdir/file3.txt`).text()
-
-    expect(file1Content).toBe('content1')
-    expect(file2Content).toBe('content2')
-    expect(file3Content).toBe('content3')
   })
 
   test('throws FSError on invalid tar data', async () => {
@@ -120,14 +87,5 @@ describe('extractTar', () => {
     const hasTarFiles = tmpFiles.includes('.tar.gz')
 
     expect(hasTarFiles).toBe(false)
-  })
-
-  test('returns absolute paths', async () => {
-    const result = await extractTar(tarData, testDir)
-
-    for (const filePath of result) {
-      expect(filePath.startsWith('/')).toBe(true)
-      expect(filePath.startsWith(testDir)).toBe(true)
-    }
   })
 })

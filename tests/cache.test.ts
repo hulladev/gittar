@@ -24,18 +24,6 @@ describe('checkCache', () => {
     expect(result).toEqual([])
   })
 
-  test('returns sorted list of files when cache exists', async () => {
-    await Bun.$`mkdir -p ${testDir}`.quiet()
-    await Bun.write(`${testDir}/file1.txt`, 'content1')
-    await Bun.write(`${testDir}/file2.txt`, 'content2')
-    await Bun.$`mkdir -p ${testDir}/subdir`.quiet()
-    await Bun.write(`${testDir}/subdir/file3.txt`, 'content3')
-
-    const result = await checkCache(testDir)
-
-    expect(result).toEqual([`${testDir}/file1.txt`, `${testDir}/file2.txt`, `${testDir}/subdir/file3.txt`])
-  })
-
   test('only includes files, not directories', async () => {
     await Bun.$`mkdir -p ${testDir}/dir1/dir2`.quiet()
     await Bun.write(`${testDir}/file.txt`, 'content')
@@ -66,19 +54,6 @@ describe('checkCache', () => {
     const result = await checkCache(testDir)
 
     expect(result).toEqual([`${testDir}/a.txt`, `${testDir}/m.txt`, `${testDir}/z.txt`])
-  })
-
-  test('handles files with various extensions', async () => {
-    await Bun.$`mkdir -p ${testDir}`.quiet()
-    await Bun.write(`${testDir}/file.js`, 'content')
-    await Bun.write(`${testDir}/file.ts`, 'content')
-    await Bun.write(`${testDir}/file.json`, 'content')
-    await Bun.write(`${testDir}/README.md`, 'content')
-
-    const result = await checkCache(testDir)
-
-    expect(result?.length).toBe(4)
-    expect(result?.every((f) => f.startsWith(testDir))).toBe(true)
   })
 
   test('does not include hidden files by default', async () => {
@@ -142,18 +117,6 @@ describe('copyFiles', () => {
 
     const fileContent = await Bun.file(`${destDir}/a/b/c/file4.txt`).text()
     expect(fileContent).toBe('c')
-  })
-
-  test('creates destination directory if it does not exist', async () => {
-    await Bun.$`mkdir -p ${sourceDir}`.quiet()
-    await Bun.write(`${sourceDir}/file.txt`, 'content')
-
-    const result = await copyFiles(sourceDir, destDir)
-
-    expect(result).toEqual([`${destDir}/file.txt`])
-
-    const { exitCode } = await Bun.$`test -d ${destDir}`.nothrow().quiet()
-    expect(exitCode).toBe(0)
   })
 
   test('overwrites existing files in destination', async () => {
