@@ -12,15 +12,20 @@ export type CacheMetadata = {
 const METADATA_FILE = '.gittar-meta.json'
 
 /**
- * Gets the remote commit SHA for a repository branch using git ls-remote
+ * Gets the commit SHA for a repository branch or an explicit full commit SHA
  * @param repoUrl - Repository URL (any supported format)
- * @param branch - Branch name to check
+ * @param branch - Branch name or full commit SHA to check
  * @returns The commit SHA, or null if it couldn't be retrieved
  */
 export async function getRemoteCommit(repoUrl: string, branch: string): Promise<string | null> {
   const parsed = parseInput(repoUrl, branch)
   if (!parsed) {
     return null
+  }
+
+  // Full commit IDs identify the requested revision without a refs/heads lookup.
+  if (/^[0-9a-f]{40}$/i.test(branch)) {
+    return branch.toLowerCase()
   }
 
   const { owner, repo, hostname } = parsed

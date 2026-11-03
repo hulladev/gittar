@@ -94,6 +94,40 @@ describe('gittar', () => {
     expect(result1.outDir).toEqual(result2.outDir)
   })
 
+  test('refreshes another revision cached for a pinned commit and then reuses that commit', async () => {
+    getRemoteCommitSpy.mockRestore()
+
+    const commit = '1b20b51a52d50c05b3d04d271a652f2671f4be80'
+    const cacheDir = `${testDir}/cache`
+    await Bun.write(`${cacheDir}/README.md`, '# Stale Repo')
+    await Bun.write(
+      `${cacheDir}/.gittar-meta.json`,
+      JSON.stringify({
+        branch: 'main',
+        commit: '0000000000000000000000000000000000000000',
+        timestamp: 0,
+      })
+    )
+
+    const config: Config = {
+      url: `https://github.com/owner/repo/tree/${commit}`,
+      cacheDir,
+    }
+
+    const downloaded = await gittar(config)
+
+    expect(downloaded.fromCache).toBe(false)
+    expect(downloaded.commit).toBe(commit)
+    expect(await Bun.file(`${cacheDir}/README.md`).text()).toBe('# Test Repo')
+
+    const cached = await gittar(config)
+
+    expect(cached.fromCache).toBe(true)
+    expect(cached.commit).toBe(commit)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledWith(`https://github.com/owner/repo/archive/${commit}.tar.gz`)
+  })
+
   test('bypasses cache when update is true', async () => {
     const cacheDir = `${testDir}/cache`
     const config: Config = {
