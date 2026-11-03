@@ -16,10 +16,10 @@ This project was created using `bun init` in bun v1.3.5. [Bun](https://bun.com) 
 
 ## AI agent guidance
 
-Install the [hulla-gittar skill](https://github.com/hulladev/skills/tree/main/skills/hulla-gittar) for package-specific guidance on snapshot downloads, subpath copying, cache isolation, and freshness:
+Install the [@hulla/gittar skill](https://github.com/hulladev/skills/tree/main/skills/gittar) for package-specific guidance on snapshot downloads, subpath copying, cache isolation, and freshness:
 
 ```sh
-npx skills add hulladev/skills --skill hulla-gittar
+npx skills add hulladev/skills --skill gittar
 ```
 
 Choose your coding agent in the installer. See [installation and version compatibility](https://hulla.dev/docs/cli/agent-skills) before adding or updating skills in your application.
