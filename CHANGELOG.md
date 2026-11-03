@@ -1,5 +1,15 @@
 # @hulla/gittar
 
+## 0.0.5
+
+### Patch Changes
+
+- Resolve full commit SHAs directly when checking cached revisions. A pinned commit
+  now replaces a cache containing another revision and records its commit identity
+  so subsequent requests can reuse the correct files.
+
+- Limit published files to built library outputs and release documentation.
+
 ## 0.0.4
 
 ### Patch Changes

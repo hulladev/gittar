@@ -1,7 +1,8 @@
 {
   "name": "@hulla/gittar",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "type": "module",
+  "files": ["dist", "CHANGELOG.md"],
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
