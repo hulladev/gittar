@@ -1,0 +1,12 @@
+{
+  "repository": "hulladev/gittar",
+  "version": "0.0.6",
+  "tag": "v0.0.6",
+  "packages": [
+    {
+      "name": "@hulla/gittar",
+      "version": "0.0.6",
+      "directory": "."
+    }
+  ]
+}

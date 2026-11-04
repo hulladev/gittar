@@ -1,5 +1,13 @@
 # @hulla/gittar
 
+## 0.0.6
+
+### Patch Changes
+
+- 575c6b5: Resolve branch names, lightweight tags, and annotated tags to exact commits before
+  downloading explicit revisions. Prevent cache reuse across revisions when remote
+  resolution fails or `update: 'never'` skips remote checks.
+
 ## 0.0.5
 
 ### Patch Changes
