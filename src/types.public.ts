@@ -2,7 +2,7 @@
  * Cache update strategy:
  * - 'always': Always re-download, ignore cache
  * - 'commit': Re-download only if remote commit SHA differs from cached (default)
- * - 'never': Always use cache if it exists, never check remote
+ * - 'never': Reuse cache for the requested revision without checking remote
  */
 export type UpdateStrategy = 'always' | 'commit' | 'never'
 
@@ -11,7 +11,7 @@ export type Config = {
   outDir?: string
   update?: UpdateStrategy
   url: string
-  branch?: string
+  branch?: string // Branch name, tag, or full commit SHA
   subpath?: string
 }
 
@@ -22,5 +22,5 @@ export type GittarResult = {
   subpath?: string // The subpath filter if user specified one
   fromCache: boolean // Whether data was retrieved from cache (true) or downloaded (false)
   commit?: string // The commit SHA that was downloaded/cached
-  branch?: string // The branch that was used
+  branch?: string // The requested revision that was used (branch, tag, or full SHA)
 }

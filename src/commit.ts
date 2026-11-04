@@ -12,9 +12,10 @@ export type CacheMetadata = {
 const METADATA_FILE = '.gittar-meta.json'
 
 /**
- * Gets the commit SHA for a repository branch or an explicit full commit SHA
+ * Gets the commit SHA for a branch, tag, or explicit full commit SHA.
+ * Branch names take precedence over tags with the same name.
  * @param repoUrl - Repository URL (any supported format)
- * @param branch - Branch name or full commit SHA to check
+ * @param branch - Branch name, tag, or full commit SHA to check
  * @returns The commit SHA, or null if it couldn't be retrieved
  */
 export async function getRemoteCommit(repoUrl: string, branch: string): Promise<string | null> {
@@ -30,22 +31,30 @@ export async function getRemoteCommit(repoUrl: string, branch: string): Promise<
 
   const { owner, repo, hostname } = parsed
   const gitUrl = `https://${hostname}/${owner}/${repo}.git`
+  const refs = branch.startsWith('refs/') ? [branch] : [`refs/heads/${branch}`, `refs/tags/${branch}`]
+  const patterns = refs.flatMap((ref) => [ref, `${ref}^{}`])
 
   try {
-    const result = await Bun.$`git ls-remote ${gitUrl} refs/heads/${branch}`.quiet().nothrow()
+    const result = await Bun.$`git ls-remote ${gitUrl} ${patterns}`.quiet().nothrow()
 
     if (result.exitCode !== 0) {
       return null
     }
 
-    const output = result.stdout.toString().trim()
-    if (!output) {
-      return null
+    const commits = new Map<string, string>()
+    for (const line of result.stdout.toString().trim().split('\n')) {
+      const [sha, ref] = line.split(/\s+/)
+      if (sha && ref && /^[0-9a-f]{40}$/i.test(sha)) {
+        commits.set(ref, sha.toLowerCase())
+      }
     }
 
-    // Output format: "<sha>\trefs/heads/<branch>"
-    const sha = output.split(/\s+/)[0]
-    return sha || null
+    for (const ref of refs) {
+      // Annotated tags advertise both their tag object and a peeled target.
+      const commit = commits.get(`${ref}^{}`) ?? commits.get(ref)
+      if (commit) return commit
+    }
+    return null
   } catch {
     return null
   }
@@ -101,6 +110,16 @@ export async function writeCacheMetadata(cacheDir: string, metadata: CacheMetada
   await Bun.write(metaPath, JSON.stringify(metadata, null, 2))
 }
 
+/** Whether cached files belong to the requested revision, without contacting the remote. */
+export function isCacheForRevision(metadata: CacheMetadata | null, branch?: string): boolean {
+  if (!metadata || typeof metadata.branch !== 'string') return false
+  if (!branch) return metadata.branch === 'main' || metadata.branch === 'master'
+  if (/^[0-9a-f]{40}$/i.test(branch)) {
+    return metadata.branch.toLowerCase() === branch.toLowerCase()
+  }
+  return metadata.branch === branch
+}
+
 /**
  * Checks if the cache is stale by comparing remote and cached commit SHAs
  * @param repoUrl - Repository URL
@@ -134,10 +153,10 @@ export async function checkCacheStale(
     remoteBranch = result.branch
   }
 
-  // If we can't get remote commit, assume not stale (fail-safe to use cache)
+  // An offline fallback may reuse only the requested revision, never another one.
   if (!remoteCommit || !remoteBranch) {
     return {
-      isStale: false,
+      isStale: !isCacheForRevision(metadata, branch),
       remoteCommit: null,
       remoteBranch: null,
       cachedCommit: metadata?.commit ?? null,

@@ -128,7 +128,7 @@ describe('gittar', () => {
     expect(fetchMock).toHaveBeenCalledWith(`https://github.com/owner/repo/archive/${commit}.tar.gz`)
   })
 
-  test('bypasses cache when update is true', async () => {
+  test('update: always downloads again and replaces stale content even when the cached commit matches', async () => {
     const cacheDir = `${testDir}/cache`
     const config: Config = {
       url: 'owner/repo',
@@ -139,9 +139,45 @@ describe('gittar', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(result1.fromCache).toBe(false)
 
+    await Bun.write(`${cacheDir}/README.md`, '# Stale Repo')
+
     const result2 = await gittar({ ...config, update: 'always' })
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(result2.fromCache).toBe(false)
+    expect(await Bun.file(`${cacheDir}/README.md`).text()).toBe('# Test Repo')
+  })
+
+  test.each([
+    ['commit', 'v1.0.0'],
+    ['never', 'v1.0.0'],
+    ['commit', undefined],
+    ['never', undefined],
+  ] as const)(
+    'update: %s does not reuse a feature branch for revision %s when remote resolution fails',
+    async (update, branch) => {
+      const cacheDir = `${testDir}/cache`
+      await gittar({ url: 'owner/repo', branch: 'feature', cacheDir })
+      await Bun.write(`${cacheDir}/README.md`, '# Wrong revision')
+      getRemoteCommitSpy.mockResolvedValue(null)
+
+      const result = await gittar({ url: 'owner/repo', branch, cacheDir, update })
+
+      expect(result.fromCache).toBe(false)
+      expect(result.branch).toBe(branch ?? 'main')
+      expect(await Bun.file(`${cacheDir}/README.md`).text()).toBe('# Test Repo')
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+      expect(fetchMock).toHaveBeenLastCalledWith(`https://github.com/owner/repo/archive/${branch ?? 'main'}.tar.gz`)
+    }
+  )
+
+  test('downloads the resolved commit rather than an ambiguous branch or tag name', async () => {
+    const commit = '1111111111111111111111111111111111111111'
+    getRemoteCommitSpy.mockResolvedValue(commit)
+    const result = await gittar({ url: 'owner/repo', branch: 'release', cacheDir: testDir })
+
+    expect(fetchMock).toHaveBeenCalledWith(`https://github.com/owner/repo/archive/${commit}.tar.gz`)
+    expect(result.commit).toBe(commit)
+    expect(result.branch).toBe('release')
   })
 
   test('uses cachedir when specified', async () => {
@@ -202,7 +238,7 @@ describe('gittar', () => {
 
     await gittar(config)
 
-    expect(fetchMock).toHaveBeenCalledWith('https://github.com/owner/repo/archive/develop.tar.gz')
+    expect(fetchMock).toHaveBeenCalledWith('https://github.com/owner/repo/archive/abc123def456.tar.gz')
   })
 
   test('throws URLError when repository not found', async () => {
@@ -873,8 +909,8 @@ describe('gittar', () => {
 
       const result = await gittar(config)
 
-      // Should fetch using the branch from URL
-      expect(fetchMock).toHaveBeenCalledWith('https://github.com/owner/repo/archive/develop.tar.gz')
+      // Resolve the URL's branch and download that exact commit.
+      expect(fetchMock).toHaveBeenCalledWith('https://github.com/owner/repo/archive/abc123def456.tar.gz')
       expect(result.branch).toBe('develop')
       expect(result.commit).toBe('abc123def456')
     })
@@ -889,8 +925,8 @@ describe('gittar', () => {
 
       const result = await gittar(config)
 
-      // config.branch takes priority
-      expect(fetchMock).toHaveBeenCalledWith('https://github.com/owner/repo/archive/feature.tar.gz')
+      // config.branch takes priority and its resolved commit is downloaded.
+      expect(fetchMock).toHaveBeenCalledWith('https://github.com/owner/repo/archive/abc123def456.tar.gz')
       expect(result.branch).toBe('feature')
       expect(result.commit).toBe('abc123def456')
     })
@@ -1089,6 +1125,7 @@ describe('gittar', () => {
     })
 
     test('explicit branch in URL prevents fallback', async () => {
+      getRemoteCommitSpy.mockResolvedValue(null)
       // Mock fetch to fail for the explicit branch
       const fetchMockNoFallback = mock(() =>
         Promise.resolve({
@@ -1113,6 +1150,7 @@ describe('gittar', () => {
     })
 
     test('config.branch prevents fallback', async () => {
+      getRemoteCommitSpy.mockResolvedValue(null)
       // Mock fetch to fail
       const fetchMockNoFallback = mock(() =>
         Promise.resolve({

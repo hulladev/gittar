@@ -3,7 +3,7 @@ import { parseRepoInfo, getCacheDir, normalizePath } from './utils'
 import { checkCache, copyFiles } from './cache'
 import { downloadTar } from './download'
 import { extractTar } from './extract'
-import { checkCacheStale, writeCacheMetadata, readCacheMetadata, getRemoteCommit } from './commit'
+import { checkCacheStale, writeCacheMetadata, readCacheMetadata, getRemoteCommit, isCacheForRevision } from './commit'
 
 /**
  * Downloads and extracts a git repository tar archive with cache-first support
@@ -16,7 +16,7 @@ import { checkCacheStale, writeCacheMetadata, readCacheMetadata, getRemoteCommit
  * Update strategies:
  * - 'always': Always re-download, ignore cache
  * - 'commit': Re-download only if remote commit SHA differs from cached (default)
- * - 'never': Always use cache if it exists, never check remote
+ * - 'never': Reuse cache for the requested revision without checking remote
  *
  * @param config - Configuration object
  * @returns Object containing filtered files, cache location, output location, and metadata
@@ -70,8 +70,8 @@ export default async function gittar(configOrUrl: Config | string): Promise<Gitt
       const metadata = await readCacheMetadata(cacheDir)
 
       if (updateStrategy === 'never') {
-        // Never check remote, always use cache if it exists
-        useCache = true
+        // Skip remote checks, but do not return another revision's files.
+        useCache = isCacheForRevision(metadata, branchToCheck)
         commit = metadata?.commit
         branch = metadata?.branch
       } else {
@@ -79,7 +79,7 @@ export default async function gittar(configOrUrl: Config | string): Promise<Gitt
         const staleCheck = await checkCacheStale(config.url, branchToCheck, cacheDir)
         // Preserve remote commit/branch for potential use after download
         knownRemoteCommit = staleCheck.remoteCommit
-        knownRemoteBranch = staleCheck.remoteBranch
+        knownRemoteBranch = staleCheck.remoteBranch ?? branchToCheck ?? null
 
         if (!staleCheck.isStale) {
           useCache = true
@@ -101,17 +101,24 @@ export default async function gittar(configOrUrl: Config | string): Promise<Gitt
     }
   }
 
-  // Download tar with branch fallback
-  // If we have an explicit branch (from config or URL), use it to prevent fallback
+  // Resolve explicit revisions before downloading so the archive and metadata agree,
+  // including when a branch and tag share a name or a ref moves during the request.
+  if (!knownRemoteBranch && branchToCheck) {
+    knownRemoteCommit = await getRemoteCommit(config.url, branchToCheck)
+    knownRemoteBranch = branchToCheck
+  }
+
+  // Preserve main → master fallback when no revision was specified or resolved.
   fromCache = false
-  const downloadConfig = branchToCheck ? { ...config, branch: branchToCheck } : config
+  const downloadRef = knownRemoteCommit ?? branchToCheck
+  const downloadConfig = downloadRef ? { ...config, branch: downloadRef } : config
   const downloadResult = await downloadTar(downloadConfig)
-  branch = downloadResult.branch
+  branch = knownRemoteBranch ?? downloadResult.branch
 
   // Get the commit SHA for the downloaded branch
   // Reuse knownRemoteCommit if we already fetched it for the same branch, otherwise fetch it
-  if (knownRemoteCommit && knownRemoteBranch === branch) {
-    commit = knownRemoteCommit
+  if (knownRemoteBranch === branch) {
+    commit = knownRemoteCommit ?? undefined
   } else {
     commit = (await getRemoteCommit(config.url, branch)) ?? undefined
   }
