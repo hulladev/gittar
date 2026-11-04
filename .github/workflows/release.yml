@@ -128,6 +128,9 @@ jobs:
           path: .release
       - name: Publish artifacts with npm OIDC
         run: node scripts/release.mjs publish
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
       - name: Verify fresh registry consumers
         run: node scripts/release.mjs verify
 

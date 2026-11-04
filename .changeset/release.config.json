@@ -4,5 +4,6 @@
   "packageManager": "bun",
   "packages": ["."],
   "smokeImports": ["@hulla/gittar"],
-  "smokeDependencies": []
+  "smokeDependencies": [],
+  "smokeRuntime": "bun"
 }
