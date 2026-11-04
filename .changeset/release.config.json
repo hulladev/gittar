@@ -1,0 +1,8 @@
+{
+  "repository": "hulladev/gittar",
+  "title": "@hulla/gittar",
+  "packageManager": "bun",
+  "packages": ["."],
+  "smokeImports": ["@hulla/gittar"],
+  "smokeDependencies": []
+}

@@ -1,6 +1,10 @@
 {
   "name": "@hulla/gittar",
   "version": "0.0.5",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hulladev/gittar.git"
+  },
   "files": [
     "CHANGELOG.md",
     "dist"
@@ -14,16 +18,27 @@
       "require": "./dist/index.cjs"
     }
   },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "scripts": {
     "build": "bunup",
     "test": "bun test",
     "commit": "cz",
-    "release": "bun run build && bun publish",
+    "release": "node scripts/release.mjs publish",
     "lint": "oxlint",
-    "fmt": "oxfmt"
+    "fmt": "oxfmt",
+    "changeset": "changeset",
+    "version:packages": "changeset version && node scripts/release.mjs prepare && bun install --lockfile-only --ignore-scripts && oxfmt .changeset/release-plan.json package.json",
+    "test:release": "node --test scripts/release-checks.mjs",
+    "release:check": "bun run lint && bun run test && bun run build && bun run test:release",
+    "release:pack": "node scripts/release.mjs pack",
+    "release:publish": "node scripts/release.mjs publish",
+    "release:verify": "node scripts/release.mjs verify"
   },
   "devDependencies": {
-    "@changesets/cli": "^2.29.8",
+    "@changesets/cli": "3.0.3",
     "@types/bun": "latest",
     "bunup": "^0.16.17",
     "commitizen": "^4.3.1",
@@ -96,5 +111,6 @@
         }
       ]
     }
-  }
+  },
+  "packageManager": "bun@1.4.0"
 }
