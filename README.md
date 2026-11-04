@@ -6,11 +6,27 @@ To install dependencies:
 bun install
 ```
 
-To run:
+## Development commands
 
-```bash
-bun run index.ts
+Run these commands from the package root:
+
+| Command         | Behavior               |
+| --------------- | ---------------------- |
+| `bun run build` | Build `dist/`.         |
+| `bun run lint`  | Check lint rules.      |
+| `bun run fmt`   | Format the repository. |
+| `bun test`      | Run the test suite.    |
+
+Pass options directly to the tools and compose commands as needed:
+
+```sh
+bun run fmt --check
+bun run fmt && bun run build
+bun run lint && bun run build
 ```
+
+The build command only builds. The release command uses that build without
+automatically running formatting or linting.
 
 ## Cache freshness
 
