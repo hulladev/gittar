@@ -1,8 +1,11 @@
 {
   "name": "@hulla/gittar",
   "version": "0.0.5",
+  "files": [
+    "CHANGELOG.md",
+    "dist"
+  ],
   "type": "module",
-  "files": ["dist", "CHANGELOG.md"],
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
@@ -12,7 +15,7 @@
     }
   },
   "scripts": {
-    "build": "oxfmt && oxlint && bunup",
+    "build": "bunup",
     "test": "bun test",
     "commit": "cz",
     "release": "bun run build && bun publish",
