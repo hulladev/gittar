@@ -1,5 +1,11 @@
 # @hulla/gittar
 
+## 0.0.7
+
+### Patch Changes
+
+- 95a73c6: Expose offline repository-source parsing so consumers can distinguish a repository/subdirectory identity from its branch, tag or commit revision.
+
 ## 0.0.6
 
 ### Patch Changes
