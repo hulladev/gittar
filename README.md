@@ -28,6 +28,21 @@ bun run lint && bun run build
 The build command only builds. The release command uses that build without
 automatically running formatting or linting.
 
+## Repository identity
+
+Use `parseRepository` to inspect a source without downloading it. Repository and subpath identify
+the source directory independently of its branch, tag or commit:
+
+```ts
+import { parseRepository } from '@hulla/gittar'
+
+parseRepository('https://github.com/acme/ui/tree/v1.0.0/generated')
+// { repository: 'https://github.com/acme/ui', subpath: 'generated', ref: 'v1.0.0' }
+```
+
+It accepts the downloader's URL/SSH/shorthand forms and explicit `branch`/`subpath` options.
+Invalid input returns `null`. Parsing does not resolve refs or check remote existence.
+
 ## Cache freshness
 
 Use `update: 'always'` to bypass the local cache and download the archive on every call:
