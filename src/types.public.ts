@@ -24,3 +24,12 @@ export type GittarResult = {
   commit?: string // The commit SHA that was downloaded/cached
   branch?: string // The requested revision that was used (branch, tag, or full SHA)
 }
+
+export type RepositorySource = {
+  /** Canonical repository URL, independent of branch/tag/commit. */
+  repository: string
+  /** Registry/directory path within the repository; empty for its root. */
+  subpath: string
+  /** Requested revision, or the parser's default main revision. Not part of identity. */
+  ref: string
+}
